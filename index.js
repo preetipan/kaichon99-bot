@@ -1,23 +1,27 @@
 // index.js
 const express = require("express");
-const { Client, middleware } = require("@line/bot-sdk");
+const line = require('@line/bot-sdk');
 require("dotenv").config();
 
+// create LINE SDK config from env variables
 const config = {
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
   channelSecret: process.env.CHANNEL_SECRET,
 };
 
+// create LINE SDK client
+const client = new line.messagingApi.MessagingApiClient({
+  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN
+});
 
+// create Express app
+// about Express itself: https://expressjs.com/
 const app = express();
-const client = new Client(config);
 
-// ตั้งค่า middleware เพื่อให้ LINE webhook ทำงาน
-app.use(middleware(config));
-
-// Route สำหรับรับ webhook event
-app.post("/webhook", (req, res) => {
-  Promise.all(req.body.events.map(handleEvent))
+// register a webhook handler with middleware
+// about the middleware, please refer to doc
+app.post('/callback', line.middleware(config), (req, res) => {
+  Promise
+    .all(req.body.events.map(handleEvent))
     .then((result) => res.json(result))
     .catch((err) => {
       console.error(err);
@@ -25,25 +29,35 @@ app.post("/webhook", (req, res) => {
     });
 });
 
-// ฟังก์ชันจัดการเหตุการณ์ต่าง ๆ
-async function handleEvent(event) {
-  if (event.type === "message" && event.message.type === "text") {
-    const messageText = event.message.text;
-    const replyToken = event.replyToken;
-
-    // ตัวอย่างการตอบกลับข้อความ
-    if (messageText === "สวัสดี") {
-      return client.replyMessage(replyToken, {
-        type: "text",
-        text: "สวัสดีครับ! ยินดีที่ได้รู้จัก",
-      });
-    }
+// event handler
+function handleEvent(event) {
+  if (event.type !== 'message' || event.message.type !== 'text') {
+    // ignore non-text-message event
+    return Promise.resolve(null);
   }
 
-  return Promise.resolve(null);
+  const messageText = event.message.text;
+
+  // เช็คข้อความว่ามีคำว่า "mem" หรือไม่
+  if (messageText.toLowerCase().includes("mem")) {
+    const replyMessage = { type: 'text', text: 'สวัสดีสมาชิก' };
+
+    // ใช้ API สำหรับตอบกลับข้อความ
+    return client.replyMessage(event.replyToken, replyMessage);
+  }
+
+  // create an echoing text message
+  const echo = { type: 'text', text: event.message.text };
+
+  // use reply API
+  return client.replyMessage({
+    replyToken: event.replyToken,
+    messages: [echo],
+  });
 }
 
-// เริ่มต้นเซิร์ฟเวอร์
-app.listen(3000, () => {
-  console.log("LINE bot server is running on port 3000");
+// listen on port
+const port = process.env.PORT;
+app.listen(port, () => {
+  console.log(`listening on ${port}`);
 });
