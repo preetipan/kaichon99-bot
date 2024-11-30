@@ -1,6 +1,6 @@
 const express = require("express");
 const line = require("@line/bot-sdk");
-const { handleEvent } = require("../controllers/lineController");
+const { handleEvent } = require("../controllers/funcController");
 const { channelSecret } = require("../config");
 
 const router = express.Router();
