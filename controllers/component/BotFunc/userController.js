@@ -1,10 +1,5 @@
 const axios = require("axios");
 require("dotenv").config();
-const { Client } = require("@line/bot-sdk");
-
-const client = new Client({
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-});
 
 const users = require("../../../models/user");
 
@@ -118,8 +113,7 @@ async function checkIfUserExists(userId) {
 }
 
 // เพิ่มสมาชิก
-async function AddMember(member) {
-  const { userId, groupId } = member;
+async function AddMember(member, userId, groupId) {
 
   try {
     const response = await axios.post(`${process.env.API_URL}/user`, {
@@ -131,14 +125,15 @@ async function AddMember(member) {
       dailyCashback: 0,
       statusFund: 1,
       isActive: true,
-      groupID: groupId,
+      groupId: groupId,
     });
 
-    // ตรวจสอบว่า API ส่งกลับสถานะ 200 หรือไม่
-    if (response.status === 200) {
+    // ตรวจสอบว่า API ส่งกลับสถานะ 201 หรือไม่
+    if (response.status === 201) {
+      // เปลี่ยนเป็น 201 เพราะ API จะส่งสถานะนี้เมื่อเพิ่มข้อมูลสำเร็จ
       console.log(`User ${userId} added successfully:`, response.data);
     } else {
-      // หาก API ไม่ตอบกลับสถานะ 200 ให้โยนข้อผิดพลาดที่มีข้อมูลจาก API
+      // หาก API ไม่ตอบกลับสถานะ 201 ให้โยนข้อผิดพลาดที่มีข้อมูลจาก API
       const errorMessage = response.data?.message || "Unknown error";
       throw new Error(`API Error: ${response.status} - ${errorMessage}`);
     }
@@ -161,18 +156,20 @@ async function AddMember(member) {
 // ฟังก์ชันอัพเดตข้อมูลผู้ใช้ในกรณีที่เคยเข้าร่วมแล้วออกไป
 async function updateMemberData(userId, groupId, { status = false }) {
   try {
-    const response = await axios.put(`${process.env.API_URL}/user/${userId}`, {
-      groupID: groupId,
+    const response = await axios.patch(`${process.env.API_URL}/user/${userId}`, {
+      groupId: groupId, // ใช้ groupId ให้ถูกต้อง
       isActive: status,
     });
 
     // ตรวจสอบสถานะการตอบกลับจาก API
-    if (response.status === 200) {
-      console.log(`User ${userId} data updated:`, response.data);
+    if (response.status === 200 || response.status === 204) {
+      // คำนึงถึงสถานะ 204 ซึ่งอาจเกิดขึ้นในบางกรณี
+      console.log(`User ${userId} data updated successfully:`, response.data);
     } else {
       console.error(
         `Failed to update data for User ${userId}:`,
-        response.status
+        response.status,
+        response.data
       );
     }
   } catch (error) {
@@ -183,31 +180,32 @@ async function updateMemberData(userId, groupId, { status = false }) {
   }
 }
 
-
-// ฟังก์ชันอัพเดตข้อมูลAdmin
+// ฟังก์ชันอัพเดตข้อมูล Admin
 async function updateAdminData(userId, groupId, { role }) {
   try {
-    const response = await axios.put(`${process.env.API_URL}/user/${userId}`, {
-      groupID: groupId,
-      role: role, // ใช้ role ที่รับมาจาก parameter
+    // ทำการส่งคำขออัปเดตข้อมูล
+    const response = await axios.patch(`${process.env.API_URL}/user/${userId}`, {
+      groupId: groupId,
+      role: role,
     });
+
+    console.log(`response : `, response);
 
     // ตรวจสอบสถานะการตอบกลับจาก API
     if (response.status === 200) {
       console.log(`User ${userId} data updated:`, response.data);
+      return { success: true, message: "Data updated successfully." };
     } else {
-      console.error(
-        `Failed to update data for User ${userId}:`,
-        response.status
-      );
+      console.error(`Failed to update data for User ${userId}:`, response.status);
+      return { success: false, message: `Failed with status code ${response.status}` };
     }
   } catch (error) {
-    console.error(
-      "Error updating member data:",
-      error.response?.data || error.message
-    );
+    // ตรวจสอบข้อผิดพลาดในกรณีที่เกิด exception
+    console.error("Error updating member data:", error.response?.data || error.message);
+    return { success: false, message: error.response?.data || error.message };
   }
 }
+
 
 module.exports = {
   getSortedUserDetails,

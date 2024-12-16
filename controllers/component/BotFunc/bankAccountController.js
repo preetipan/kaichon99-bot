@@ -1,10 +1,5 @@
 const axios = require("axios");
 require("dotenv").config();
-const { Client } = require("@line/bot-sdk");
-
-const client = new Client({
-  channelAccessToken: process.env.CHANNEL_ACCESS_TOKEN,
-});
 
 function getBankAccountDetails(member) {
   return {
@@ -74,7 +69,7 @@ async function depositMoneyCash(id, amount) {
     //CASH = 1
     //CREDIT = 2
     // อัปเดตข้อมูลเงินใน API
-    const updateResponse = await axios.put(
+    const updateResponse = await axios.patch(
       `${process.env.API_URL}/user/id/${id}`,
       {
         fund: updatedFund,
@@ -114,7 +109,7 @@ async function depositMoneyCredit(id, amount) {
     const updatedFund = fund + amount;
 
     // อัปเดตข้อมูลเงินใน API
-    const updateResponse = await axios.put(
+    const updateResponse = await axios.patch(
       `${process.env.API_URL}/user/id/${id}`,
       { fund: updatedFund, statusFund: 2 }
     );
@@ -156,7 +151,7 @@ async function withdrawMoney(id, amount) {
     const updatedFund = fund - amount;
 
     // อัปเดตข้อมูลในระบบ
-    const updateResponse = await axios.put(
+    const updateResponse = await axios.patch(
       `${process.env.API_URL}/user/id/${id}`,
       {
         fund: updatedFund,

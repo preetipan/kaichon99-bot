@@ -15,32 +15,59 @@ async function setGroup(event, groupName) {
       throw new Error("API_URL is not defined in .env");
     }
 
-    console.log("groupId:", groupId);
-    console.log("groupName:", groupName);
-
+    const create_by = event.source.userId;
     const response = await axios.post(`${process.env.API_URL}/group`, {
       idGroup: groupId,
       groupName: groupName,
       cockIsActive: true,
       hiloIsActive: false,
+      openPlay: false,
+      createBy: create_by,
     });
-
-    console.log("Group added response:", response.data);
 
     // สร้างข้อความยืนยันการเพิ่มกลุ่ม
     const confirmationMessage = `กลุ่ม "${groupName}" ได้รับการเพิ่มเรียบร้อยแล้ว`;
 
-    // ส่งข้อความตอบกลับไปยังกลุ่มโดยใช้ replyMessage
-    await client.replyMessage(event.replyToken, {
-      type: "text",
-      text: confirmationMessage,
-    });
-
-    // ส่งข้อความยืนยันกลับจากฟังก์ชัน
     return confirmationMessage;
   } catch (error) {
     console.error("Error adding group:", error.response?.data || error.message);
     return "เกิดข้อผิดพลาดในการเพิ่มกลุ่ม กรุณาลองใหม่";
+  }
+}
+
+// ฟังก์ชันอัปเดตกลุ่มหลังบ้าน
+async function setSubGroup(event, mainGroupName, subGroupName) {
+  try {
+    const groupId = event.source.groupId || event.source.roomId;
+
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const create_by = event.source.userId;
+
+    const payload = {
+      subGroup: groupId,
+      subGroupname: subGroupName,
+      updateBy: create_by,
+    };
+
+    // ใช้ PUT สำหรับการอัปเดต
+    const response = await axios.patch(
+      `${process.env.API_URL}/group/subGroup/${mainGroupName}`,
+      payload
+    );
+
+    // สร้างข้อความยืนยันการอัปเดต
+    const confirmationMessage = `กลุ่ม "${mainGroupName}" -> "${subGroupName}" ได้รับการอัปเดตเรียบร้อยแล้ว`;
+
+    return confirmationMessage;
+  } catch (error) {
+    console.error(
+      "Error updating group:",
+      error.response?.data || error.message
+    );
+    return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
   }
 }
 
@@ -152,6 +179,46 @@ async function getGroupMembers(groupId) {
 
     await Promise.all(members.map((member) => sendUserToAPI(member)));
 
+    // return {
+    //   success: true,
+    //   message: `เพิ่มสมาชิก ${members.length} คนในกลุ่มเรียบร้อย!`,
+    // };
+    const confirmationMessage = `เพิ่มสมาชิก ${members.length} คนในกลุ่มเรียบร้อย!`;
+    return confirmationMessage;
+  } catch (error) {
+    console.error("Error fetching group members:", error);
+
+    if (error.response?.status === 403) {
+      throw new Error("Bot ไม่มีสิทธิ์เข้าถึงสมาชิก");
+    }
+
+    throw new Error("ไม่สามารถดึงข้อมูลสมาชิกได้");
+  }
+}
+
+// ฟังก์ชันดึงข้อมูลสมาชิกจากกลุ่ม
+async function getGroupByName(groupName) {
+  try {
+    const memberIds = await client.getGroupMemberIds(groupId);
+    console.log("จำนวนสมาชิก:", memberIds.length);
+
+    const members = [];
+    for (const userId of memberIds) {
+      try {
+        const profile = await client.getGroupMemberProfile(groupId, userId);
+        members.push({
+          userId: profile.userId,
+          displayName: profile.displayName,
+          groupId: groupId,
+        });
+        console.log("สมาชิก:", profile.displayName);
+      } catch (profileError) {
+        console.warn(`ข้ามการเพิ่มสมาชิก ${userId}`);
+      }
+    }
+
+    await Promise.all(members.map((member) => sendUserToAPI(member)));
+
     return {
       success: true,
       message: `เพิ่มสมาชิก ${members.length} คนในกลุ่มเรียบร้อย!`,
@@ -167,10 +234,12 @@ async function getGroupMembers(groupId) {
   }
 }
 
-// ฟังก์ชันตรวจสอบการมีอยู่ของสมาชิก
-async function checkIfGroup(groupID) {
+// ฟังก์ชันตรวจสอบการมีอยู่ของกลุ่มหลัก
+async function checkIfGroupMain(groupID) {
   try {
-    const response = await axios.get(`${process.env.API_URL}/group/${groupID}`);
+    const response = await axios.get(
+      `${process.env.API_URL}/group/detail/${groupID}`
+    );
     if (response.data) {
       return true;
     }
@@ -180,10 +249,29 @@ async function checkIfGroup(groupID) {
   }
 }
 
+// ฟังก์ชันตรวจสอบการมีอยู่ของ subGroup
+async function checkIfGroupSub(subGroupID) {
+  try {
+    const response = await axios.get(
+      `${process.env.API_URL}/group/checkSubGroup/${subGroupID}`
+    );
+    if (response.data.exists) {
+      return true; // subGroup มีอยู่
+    }
+    return false; // subGroup ไม่มี
+  } catch (error) {
+    console.error("Error checking subGroup:", error);
+    return false; // กรณีมีข้อผิดพลาด ให้คืนค่า false
+  }
+}
+
 module.exports = {
   setGroup,
   setHilo,
   setCock,
   getGroupMembers,
-  checkIfGroup,
+  checkIfGroupSub,
+  checkIfGroupMain,
+  getGroupByName,
+  setSubGroup,
 };
