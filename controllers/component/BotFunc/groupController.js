@@ -146,7 +146,7 @@ async function sendUserToAPI(member) {
       groupID: groupId,
     });
 
-    console.log(`User ${userId} added successfully:`, response.data);
+    //console.log(`User ${userId} added successfully:`, response.data);
   } catch (error) {
     console.error(
       "Error sending user to API:",
@@ -249,6 +249,20 @@ async function checkIfGroupMain(groupID) {
   }
 }
 
+async function checkIfGroupSub(groupID) {
+  try {
+    const response = await axios.get(
+      `${process.env.API_URL}/group/subgroup-detail/${groupID}`
+    );
+    if (response.data) {
+      return true;
+    }
+    return false;
+  } catch (error) {
+    return false;
+  }
+}
+
 // ฟังก์ชันตรวจสอบการมีอยู่ของ subGroup
 async function checkIfGroupSub(subGroupID) {
   try {
@@ -274,4 +288,5 @@ module.exports = {
   checkIfGroupMain,
   getGroupByName,
   setSubGroup,
+  checkIfGroupSub,
 };

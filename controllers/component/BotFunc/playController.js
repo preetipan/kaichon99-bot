@@ -134,6 +134,45 @@ async function resetMainRound(event) {
   }
 }
 
+// ฟังก์ชันรีเซ็ตจำนวนรอบ รอบเล่นย่อย
+async function resetSubRound(event) {
+  try {
+    const groupId = event.source.groupId || event.source.roomId;
+    if (!groupId) {
+      return "ไม่พบกลุ่มที่ต้องการดำเนินการ กรุณาลองใหม่";
+    }
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const create_by = event.source.userId;
+    if (!create_by) {
+      return "ไม่สามารถหาผู้ใช้งานที่ทำการดำเนินการ กรุณาลองใหม่";
+    }
+
+    const payload = {
+      updateBy: create_by,
+    };
+
+    const response = await axios.patch(
+      `${process.env.API_URL}/group/${groupId}/reset-sub-round`,
+      payload
+    );
+  } catch (error) {
+    console.error(
+      "Error updating group:",
+      error.response?.data || error.message
+    );
+    if (error.response) {
+      return `ข้อผิดพลาดจาก API: ${
+        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+      }`;
+    }
+
+    return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
+  }
+}
+
 // ฟังก์ชันเพิ่มจำนวน รอบเล่นหลัก
 async function setNumberMainRound(event) {
   try {
@@ -156,6 +195,45 @@ async function setNumberMainRound(event) {
 
     const response = await axios.patch(
       `${process.env.API_URL}/group/${groupId}/increment-main-round`,
+      payload
+    );
+  } catch (error) {
+    console.error(
+      "Error updating group:",
+      error.response?.data || error.message
+    );
+    if (error.response) {
+      return `ข้อผิดพลาดจาก API: ${
+        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+      }`;
+    }
+
+    return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
+  }
+}
+
+// ฟังก์ชันเพิ่มจำนวน รอบเล่นหลัก
+async function setNumberSubRound(event) {
+  try {
+    const groupId = event.source.groupId || event.source.roomId;
+    if (!groupId) {
+      return "ไม่พบกลุ่มที่ต้องการดำเนินการ กรุณาลองใหม่";
+    }
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const create_by = event.source.userId;
+    if (!create_by) {
+      return "ไม่สามารถหาผู้ใช้งานที่ทำการดำเนินการ กรุณาลองใหม่";
+    }
+
+    const payload = {
+      updateBy: create_by,
+    };
+
+    const response = await axios.patch(
+      `${process.env.API_URL}/group/${groupId}/increment-sub-round`,
       payload
     );
   } catch (error) {
@@ -212,6 +290,7 @@ async function setMainPlay(event, status) {
 
     const payload = {
       round_status: roundStatus,
+      numberMainRound: numberMainRound,
       groupId: groupId,
       createBy: createBy,
       start_time: formattedTime,
@@ -300,7 +379,6 @@ async function checkPreviousRoundStatus() {
   }
 }
 
-
 // ฟังก์ชันเช็คสถานะรอบเล่นย่อย
 async function checkPreviousSubRoundStatus() {
   try {
@@ -308,7 +386,7 @@ async function checkPreviousSubRoundStatus() {
       `${process.env.API_URL}/sub-round/statusSubMain/latest`
     );
 
-    console.log("response", response);
+    //console.log("response", response);
 
     // ตรวจสอบค่าจาก response.data ซึ่งควรเป็น boolean
     if (response.status === 200) {
@@ -320,7 +398,6 @@ async function checkPreviousSubRoundStatus() {
     return false; // หากเกิดข้อผิดพลาด, คืนค่าผลลัพธ์เป็น false
   }
 }
-
 
 //ฟังก์ชันเช็ครอบเล่นหลักล่าสุด
 async function checkMainRoundNow(event) {
@@ -354,7 +431,6 @@ async function checkMainRoundNow(event) {
   }
 }
 
-
 //ฟังก์ชันเช็ครอบเล่นย่อยล่าสุด
 async function checkSubRoundNow(event) {
   try {
@@ -373,6 +449,39 @@ async function checkSubRoundNow(event) {
     );
 
     return response.data.id;
+  } catch (error) {
+    console.error(
+      "Error checking openPlayInday:",
+      error.response?.data || error.message
+    );
+
+    return {
+      error: true,
+      message:
+        error.response?.data?.message || "เกิดข้อผิดพลาดในการตรวจสอบสถานะ",
+    };
+  }
+}
+
+
+//ฟังก์ชันเช็คข้อมูลรอบเล่นย่อยล่าสุด
+async function checkSubRoundData(event) {
+  try {
+    const groupId = event.source.groupId || event.source.roomId;
+
+    if (!groupId) {
+      return "ไม่พบกลุ่ม กรุณาลองใหม่";
+    }
+
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const response = await axios.get(
+      `${process.env.API_URL}/sub-round/latest-details`
+    );
+
+    return response.data;
   } catch (error) {
     console.error(
       "Error checking openPlayInday:",
@@ -451,7 +560,8 @@ async function checkSubRoundNumber(event) {
   }
 }
 
-async function setOpenOdds(event, oddsToSend) {
+// ฟังก์ชันตั้งราคาเล่น
+async function setOpenOdds(event, oddsToSend, maxAmount) {
   try {
     const groupId = event.source.groupId || event.source.roomId;
 
@@ -481,17 +591,8 @@ async function setOpenOdds(event, oddsToSend) {
       "." +
       ("00" + currentTime.getMilliseconds()).slice(-3);
 
-    // ตรวจสอบค่า subround_number
-    let subround_number = await checkSubRoundNumber(event);
-
-    subround_number = Number(subround_number);
-    if (isNaN(subround_number)) {
-      subround_number = 0;
-    }
-    subround_number += 1;
-
-    // ตรวจสอบค่า round_number
-    const round_number = await checkMainRoundNow(event)
+    const subround_number = await checkSubRoundNumber(event);
+    const round_number = await checkMainRoundNow(event);
 
     // เตรียม payload
     const payload = {
@@ -500,11 +601,15 @@ async function setOpenOdds(event, oddsToSend) {
       price: oddsToSend,
       status: 1,
       start_time: formattedTime,
+      max_amount: maxAmount,
       createBy: create_by,
     };
 
     // เรียก API
-    const response = await axios.post(`${process.env.API_URL}/sub-round`, payload);
+    const response = await axios.post(
+      `${process.env.API_URL}/sub-round`,
+      payload
+    );
 
     // ตรวจสอบการตอบสนองจาก API
     if (response.status === 200 || response.status === 201) {
@@ -529,12 +634,13 @@ async function setOpenOdds(event, oddsToSend) {
   }
 }
 
-// ฟังก์ชันปิดรอบเล่นหลัก
+// ฟังก์ชันปิดราคาเล่น
 async function setCloseOdds(event) {
   try {
     if (!process.env.API_URL) {
       throw new Error("API_URL is not defined in .env");
     }
+
     const groupId = event.source.groupId || event.source.roomId;
     const isOpenMainStatus = await checkPreviousRoundStatus();
     const idSubRound = await checkSubRoundNow(event);
@@ -555,10 +661,10 @@ async function setCloseOdds(event) {
       "." +
       ("00" + currentTime.getMilliseconds()).slice(-3);
 
-      const payload = {
-        status: 2,
-        end_time: formattedTime,
-      };
+    const payload = {
+      status: 2,
+      end_time: formattedTime,
+    };
 
     const response = await axios.patch(
       `${process.env.API_URL}/sub-round/${idSubRound}`,
@@ -567,7 +673,7 @@ async function setCloseOdds(event) {
 
     // เพิ่มการตรวจสอบข้อมูลที่ได้จาก API
     if (response && response.data) {
-      return "กรุณารอราคาถัดไป!!!";
+      return "ปิดราคาเล่น";
     } else {
       throw new Error("ไม่สามารถปิดรอบได้ หรือไม่พบข้อมูล");
     }
@@ -575,7 +681,6 @@ async function setCloseOdds(event) {
     return "เกิดข้อผิดพลาดในการอัปเดตรอบ กรุณาลองใหม่";
   }
 }
-
 
 module.exports = {
   setPlayInday,
@@ -589,4 +694,7 @@ module.exports = {
   setOpenOdds,
   checkPreviousSubRoundStatus,
   setCloseOdds,
+  setNumberSubRound,
+  resetSubRound,
+  checkSubRoundData,
 };

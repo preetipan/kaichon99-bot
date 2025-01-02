@@ -36,13 +36,15 @@ async function getUserMoney(userId, member) {
     const userName = member.displayName || "ผู้ใช้";
     const userPictureUrl =
       member.pictureUrl || "https://example.com/default-profile.png";
+    
+      const formattedFund = fund.toLocaleString("en-US");
 
     return {
       type: "flex",
       altText: `ข้อมูลเงินคงเหลือของ ${userName}`,
       contents: {
         type: "bubble",
-        size: "mega",
+        size: "giga",
         body: {
           type: "box",
           layout: "horizontal",
@@ -70,7 +72,7 @@ async function getUserMoney(userId, member) {
                 },
                 {
                   type: "text",
-                  text: `เงินคงเหลือ ${fund} 💰`,
+                  text: `เงินคงเหลือ ${formattedFund} 💰`,
                   weight: "bold",
                   size: "md",
                   margin: "md",
@@ -131,7 +133,7 @@ async function AddMember(member, userId, groupId) {
     // ตรวจสอบว่า API ส่งกลับสถานะ 201 หรือไม่
     if (response.status === 201) {
       // เปลี่ยนเป็น 201 เพราะ API จะส่งสถานะนี้เมื่อเพิ่มข้อมูลสำเร็จ
-      console.log(`User ${userId} added successfully:`, response.data);
+      //console.log(`User ${userId} added successfully:`, response.data);
     } else {
       // หาก API ไม่ตอบกลับสถานะ 201 ให้โยนข้อผิดพลาดที่มีข้อมูลจาก API
       const errorMessage = response.data?.message || "Unknown error";
@@ -206,6 +208,23 @@ async function updateAdminData(userId, groupId, { role }) {
   }
 }
 
+//ฟังก์ชันเช็คข้อมูลผู้ใช้
+async function checkUserData(userId) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const response = await axios.get(`${process.env.API_URL}/user/${userId}`);
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error checking openPlayInday:",
+      error.response?.data || error.message
+    );
+  }
+}
+
 
 module.exports = {
   getSortedUserDetails,
@@ -215,4 +234,5 @@ module.exports = {
   getUserRole,
   getUserMoney,
   updateAdminData,
+  checkUserData,
 };

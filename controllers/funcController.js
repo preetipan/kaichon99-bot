@@ -29,6 +29,7 @@ const {
   handleCloseMainPlayCommand,
   handleSetOdds,
   handleCloseSetOdds,
+  handleUserBet,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
@@ -177,6 +178,7 @@ async function handleMemberLeft(event) {
 async function handleTextMessage(event) {
   const groupId = event.source.groupId;
   const isGroup = await checkIfGroupMain(groupId);
+  const isSubGroup = await checkIfGroupSub(groupId);
   const userMessage = event.message.text.trim();
 
   console.log("userMessage : " + userMessage);
@@ -191,191 +193,224 @@ async function handleTextMessage(event) {
     return handleSetSubGroupCommand(event, userMessage);
   }
 
-  // เพิ่มสมาชิกทั้งหมดที่มีอยู่ในกลุ่มหลัก ยังใช้ไม่ได้
-  if (userMessage === "เพิ่มทั้งหมด") {
-    return handleAddAllMembers(event);
-  }
-
-  // เปิดใช้งานระบบไฮโล
-  if (userMessage.toLowerCase().startsWith("set#เปิด#ไฮโล")) {
-    return handleSetHiloCommand(event, "เปิด");
-  }
-
-  // ปิดใช้งานระบบไฮโล
-  if (userMessage.toLowerCase().startsWith("set#ปิด#ไฮโล")) {
-    return handleSetHiloCommand(event, "ปิด");
-  }
-
-  // เปิดใช้งานระบบไก่ชน
-  if (userMessage.toLowerCase().startsWith("set#เปิด#ไก่ชน")) {
-    return handleSetCockCommand(event, "เปิด");
-  }
-
-  // ปิดใช้งานระบบไก่ชน
-  if (userMessage.toLowerCase().startsWith("set#ปิด#ไก่ชน")) {
-    return handleSetCockCommand(event, "ปิด");
-  }
-
-  // แจ้งเลขบัญชี
-  if (userMessage === "บช") {
-    return handleBankAccountDetails(event);
-  }
-
-  // เทส
-  if (userMessage === "เทส") {
-    return handleTestDetails(event);
-  }
-
-  // เทส2
-  if (userMessage.toLowerCase() === "cdd") {
-    return handleUserDetails(event);
-  }
-
   // แสดงยอดเงินคงเหลือ
   if (userMessage.toLowerCase() === "c") {
     return handleUserCheckMoney(event);
   }
 
-  // เพิ่มเงิน แบบเครดิต
-  if (userMessage.startsWith("++")) {
-    return handleTopUpCredit(event, userMessage);
-  }
-
-  // เพิ่มเงิน แบบเงินสด
-  if (userMessage.startsWith("+")) {
-    return handleCashCustomer(event, userMessage);
-  }
-
-  // ถอนเงิน
-  if (userMessage.startsWith("-")) {
-    return handleWithdrawMoney(event, userMessage);
-  }
-
-  // คำสั่งเฉพาะกลุ่มหลัก
-  if (isGroup) {
-    // เพิ่มแอดมินสำหรับกลุ่มหลัก
-    if (
-      userMessage.toLowerCase().startsWith("@") &&
-      userMessage.includes("+admin")
-    ) {
-      return handleUpdateAdminRole(event, userMessage, { admin: 1 }); // กำหนดเป็นแอดมิน
+  if (isGroup || isSubGroup) {
+    // เพิ่มสมาชิกทั้งหมดที่มีอยู่ในกลุ่มหลัก ยังใช้ไม่ได้
+    if (userMessage === "เพิ่มทั้งหมด") {
+      return handleAddAllMembers(event);
     }
 
-    // ลบแอดมินสำหรับกลุ่มหลัก
-    if (
-      userMessage.toLowerCase().startsWith("@") &&
-      userMessage.includes("-admin")
-    ) {
-      return handleUpdateAdminRole(event, userMessage, { admin: 2 }); // กำหนดเป็นสมาชิกทั่วไป
+    // เปิดใช้งานระบบไฮโล
+    if (userMessage.toLowerCase().startsWith("set#เปิด#ไฮโล")) {
+      return handleSetHiloCommand(event, "เปิด");
     }
 
-    // เปิดบ้านไก่ชน
-    if (userMessage.toLowerCase() === "z") {
-      return await handleOpenIndayCommand(event);
+    // ปิดใช้งานระบบไฮโล
+    if (userMessage.toLowerCase().startsWith("set#ปิด#ไฮโล")) {
+      return handleSetHiloCommand(event, "ปิด");
     }
 
-    // ปิดบ้าน
-    if (userMessage.toLowerCase() === "zz") {
-      return await handleCloseIndayCommand(event);
+    // เปิดใช้งานระบบไก่ชน
+    if (userMessage.toLowerCase().startsWith("set#เปิด#ไก่ชน")) {
+      return handleSetCockCommand(event, "เปิด");
     }
 
-    // เปิดรอบเล่นหลัก
-    if (userMessage.toLowerCase() === "o") {
-      return await handleOpenMainPlayCommand(event);
+    // ปิดใช้งานระบบไก่ชน
+    if (userMessage.toLowerCase().startsWith("set#ปิด#ไก่ชน")) {
+      return handleSetCockCommand(event, "ปิด");
     }
 
-    // คำสั่งใหม่ "ตร" และ "ง" หรือ "ด"
-    if (userMessage.toLowerCase().startsWith("ตร/")) {
-      const parts = userMessage.split("/");
+    // แจ้งเลขบัญชี
+    if (userMessage === "บช") {
+      return handleBankAccountDetails(event);
+    }
+
+    // เทส
+    if (userMessage === "เทส") {
+      return handleTestDetails(event);
+    }
+
+    // เทส2
+    if (userMessage.toLowerCase() === "cdd") {
+      return handleUserDetails(event);
+    }
+
+    // เพิ่มเงิน แบบเครดิต
+    if (userMessage.includes("=++")) {
+      return handleTopUpCredit(event, userMessage);
+    }
+
+    // เพิ่มเงิน แบบเงินสด
+    if (userMessage.includes("=+")) {
+      return handleCashCustomer(event, userMessage);
+    }
+
+    // ถอนเงิน
+    if (userMessage.includes("=-")) {
+      return handleWithdrawMoney(event, userMessage);
+    }
+
+    // คำสั่งเฉพาะกลุ่มหลัก
+    if (isGroup) {
+      // เพิ่มแอดมินสำหรับกลุ่มหลัก
       if (
-        parts.length === 2 &&
-        isFinite(parts[1]) &&
-        parseFloat(parts[1]) > 0
+        userMessage.toLowerCase().startsWith("@") &&
+        userMessage.includes("+admin")
       ) {
-        const maxAmount = parts[1];
-        return await handleSetOdds(event, { type: "ตร", maxAmount });
-      } else {
-        const replyMessage = {
-          type: "text",
-          text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
-        };
+        return handleUpdateAdminRole(event, userMessage, { admin: 1 }); // กำหนดเป็นแอดมิน
+      }
 
-        return await client.replyMessage(event.replyToken, replyMessage);
+      // ลบแอดมินสำหรับกลุ่มหลัก
+      if (
+        userMessage.toLowerCase().startsWith("@") &&
+        userMessage.includes("-admin")
+      ) {
+        return handleUpdateAdminRole(event, userMessage, { admin: 2 }); // กำหนดเป็นสมาชิกทั่วไป
+      }
+
+      // เปิดบ้านไก่ชน
+      if (userMessage.toLowerCase() === "z") {
+        return await handleOpenIndayCommand(event);
+      }
+
+      // ปิดบ้าน
+      if (userMessage.toLowerCase() === "zz") {
+        return await handleCloseIndayCommand(event);
+      }
+
+      // เปิดรอบเล่นหลัก
+      if (userMessage.toLowerCase() === "o") {
+        return await handleOpenMainPlayCommand(event);
+      }
+
+      // คำสั่งเปิดราคา "ตร" และ "ง" หรือ "ด"
+      if (userMessage.toLowerCase().startsWith("ตร/")) {
+        const parts = userMessage.split("/");
+        if (
+          parts.length === 2 &&
+          isFinite(parts[1]) &&
+          parseFloat(parts[1]) > 0
+        ) {
+          const maxAmount = parts[1];
+          return await handleSetOdds(event, { type: "ตร", maxAmount });
+        } else {
+          const replyMessage = {
+            type: "text",
+            text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
+          };
+
+          return await client.replyMessage(event.replyToken, replyMessage);
+        }
+      }
+
+      // คำสั่งเปิดราคา "ด" หรือ "ง" เช่น ด8/50000
+      if (
+        (userMessage.toLowerCase().startsWith("ด") ||
+          userMessage.toLowerCase().startsWith("ง")) &&
+        userMessage.includes("/")
+      ) {
+        const parts = userMessage.split("/");
+        if (
+          parts.length === 2 &&
+          isFinite(parts[1]) &&
+          parseFloat(parts[1]) > 0
+        ) {
+          const type = userMessage.toLowerCase().startsWith("ด") ? "ด" : "ง";
+          const odds = parts[0].substring(1); // อัตราต่อรองหลังตัวอักษรนำหน้า
+          const maxAmount = parts[1];
+
+          if (!isFinite(odds) || parseFloat(odds) <= 0) {
+            const replyMessage = {
+              type: "text",
+              text: "กรุณาระบุอัตราต่อรองให้ถูกต้อง เช่น ด8/50000 หรือ ง8/50000",
+            };
+            return await client.replyMessage(event.replyToken, replyMessage);
+          }
+
+          return await handleSetOdds(event, { type, odds, maxAmount });
+        } else {
+          const replyMessage = {
+            type: "text",
+            text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
+          };
+          return await client.replyMessage(event.replyToken, replyMessage);
+        }
+      }
+
+      // คำสั่งเปิดราคา "สด" หรือ "สง"
+      if (
+        userMessage.toLowerCase().startsWith("สด/") ||
+        userMessage.toLowerCase().startsWith("สง/")
+      ) {
+        const parts = userMessage.split("/");
+        if (
+          parts.length === 2 &&
+          isFinite(parts[1]) &&
+          parseFloat(parts[1]) > 0
+        ) {
+          const [type, maxAmount] = parts;
+          return await handleSetOdds(event, { type, maxAmount });
+        } else {
+          const replyMessage = {
+            type: "text",
+            text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
+          };
+
+          return await client.replyMessage(event.replyToken, replyMessage);
+        }
+      }
+
+      // คำสั่งเดิมพัน  "ด" หรือ "ง" เช่น ด50000
+      if (
+        userMessage.toLowerCase().startsWith("ด") ||
+        userMessage.toLowerCase().startsWith("ง")
+      ) {
+        const type = userMessage.toLowerCase().startsWith("ด") ? "ด" : "ง";
+        const amount = parseFloat(userMessage.substring(1));
+
+        try {
+          const userbet = await handleUserBet(event, { type, amount });
+
+          return await client.replyMessage(event.replyToken, userbet);
+        } catch (error) {
+          const errorMessage = {
+            type: "text",
+            text: "เกิดข้อผิดพลาดในการลงเดิมพัน กรุณาลองใหม่อีกครั้ง",
+          };
+          return await client.replyMessage(event.replyToken, errorMessage);
+        }
+      }
+
+      // ปิดรอบเล่นย่อย
+      if (userMessage.toLowerCase() === "st") {
+        return await handleCloseSetOdds(event);
+      }
+
+      // ปิดรอบเล่นหลัก
+      if (userMessage.toLowerCase() === "x") {
+        return await handleCloseMainPlayCommand(event);
+      }
+
+      // สรุปผล
+      if (userMessage.toLowerCase().startsWith("S")) {
+        return "";
+      }
+
+      // ยืนยันผล
+      if (userMessage.toLowerCase() === "Y") {
+        return "";
+      }
+
+      // ย้อนผล
+      if (userMessage.toLowerCase().startsWith("return#")) {
+        return "";
       }
     }
-
-    if (
-      userMessage.toLowerCase().startsWith("ง") ||
-      userMessage.toLowerCase().startsWith("ด")
-    ) {
-      const parts = userMessage.split("/");
-      if (
-        parts.length === 2 &&
-        isFinite(parts[1]) &&
-        parseFloat(parts[1]) > 0
-      ) {
-        const [odds, maxAmount] = parts;
-        const type = userMessage.toLowerCase().startsWith("ง") ? "ง" : "ด";
-        return await handleSetOdds(event, { type, odds, maxAmount });
-      } else {
-        const replyMessage = {
-          type: "text",
-          text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
-        };
-
-        return await client.replyMessage(event.replyToken, replyMessage);
-      }
-    }
-
-    // คำสั่งใหม่ "สด" และ "สง"
-    if (
-      userMessage.toLowerCase().startsWith("สด/") ||
-      userMessage.toLowerCase().startsWith("สง/")
-    ) {
-      const parts = userMessage.split("/");
-      if (
-        parts.length === 2 &&
-        isFinite(parts[1]) &&
-        parseFloat(parts[1]) > 0
-      ) {
-        const [type, maxAmount] = parts;
-        return await handleSetOdds(event, { type, maxAmount });
-      } else {
-        const replyMessage = {
-          type: "text",
-          text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
-        };
-
-        return await client.replyMessage(event.replyToken, replyMessage);
-      }
-    }
-
-    // ปิดรอบเล่นย่อย
-    if (userMessage.toLowerCase() === "st") {
-      return await handleCloseSetOdds(event);;
-    }
-
-    // ปิดรอบเล่นหลัก
-    if (userMessage.toLowerCase() === "x") {
-      return await handleCloseMainPlayCommand(event);
-    }
-
-    // สรุปผล
-    if (userMessage.toLowerCase().startsWith("S")) {
-      return "";
-    }
-
-    // ยืนยันผล
-    if (userMessage.toLowerCase() === "Y") {
-      return "";
-    }
-
-    // ย้อนผล
-    if (userMessage.toLowerCase().startsWith("return#")) {
-      return "";
-    }
   }
-
   return null;
 }
 
