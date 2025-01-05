@@ -1,5 +1,19 @@
 const axios = require("axios");
 require("dotenv").config();
+const { Client } = require("@line/bot-sdk");
+const { channelAccessToken } = require("../../../config");
+const client = new Client({ channelAccessToken });
+
+// ฟังก์ชันในการดึงโปรไฟล์ของผู้ใช้
+async function getUserProfile(userId) {
+  try {
+    const profile = await client.getProfile(userId); // ใช้ client แทน lineClient
+    return profile.displayName; // ส่งกลับชื่อผู้ใช้
+  } catch (error) {
+    console.error('Error fetching user profile: ', error);
+    return 'ไม่สามารถดึงชื่อได้'; // กรณีไม่สามารถดึงข้อมูลได้
+  }
+}
 
 // ฟังก์ชันเปิด-ปิด บ้านไก่ชน
 async function setPlayInday(event, openPlay) {
@@ -350,9 +364,18 @@ async function updateMainPlay(event, status) {
       payload
     );
 
+    // const responsePlay = await axios.get(
+    //   `${process.env.API_URL}/transaction-play/round/${idMainRound}`,
+    //   payload
+    // );
+
     // เพิ่มการตรวจสอบข้อมูลที่ได้จาก API
     if (response && response.data) {
-      return "ปิดรอบ";
+      return "ปิดรอบเล่นหลัก";
+      // if (responsePlay) {
+      //   const plays = responsePlay.data;
+      //   return await createStyledFlexMessage(plays);
+      // }
     } else {
       throw new Error("ไม่สามารถปิดรอบได้ หรือไม่พบข้อมูล");
     }
@@ -462,7 +485,6 @@ async function checkSubRoundNow(event) {
     };
   }
 }
-
 
 //ฟังก์ชันเช็คข้อมูลรอบเล่นย่อยล่าสุด
 async function checkSubRoundData(event) {
@@ -682,7 +704,6 @@ async function setCloseOdds(event) {
   }
 }
 
-
 // ฟังก์ชันปิดราคาเล่น
 async function setPlayBet(event, betData) {
   try {
@@ -706,57 +727,89 @@ async function setPlayBet(event, betData) {
   }
 }
 
+// async function createStyledFlexMessage(plays) {
+//   if (!plays || plays.length === 0) {
+//     return {
+//       type: "text",
+//       text: "ไม่มีข้อมูลการเล่นในรอบหลักนี้",
+//     };
+//   }
 
-async function checkUserPlay(event) {
-  try {
+//   console.log("plays", plays);
 
-    if (!process.env.API_URL) {
-      throw new Error("API_URL is not defined in .env");
-    }
+//   // ดึงชื่อผู้ใช้จาก userId
+//   const contents = await Promise.all(
+//     plays.map(async (play, index) => {
+//       console.log("play", play);
 
-    const userId = event.source.userId;
-    const idMainRound = await checkMainRoundNow(event);
+//       let userName = "ไม่สามารถดึงชื่อได้"; // กำหนดค่าภาพเริ่มต้นถ้าไม่สามารถดึงชื่อได้
 
-    const response = await axios.get(
-      `${process.env.API_URL}/transaction-play/user/${userId}/round/${idMainRound}`
-    );
+//       try {
+//         // ตรวจสอบว่า play.user มีค่า (เช่น userId)
+//         if (play.user) {
+//           userName = await getUserProfile(play.user); // เรียกฟังก์ชันเพื่อดึงชื่อ
+//           console.log("userName", userName);
+//         }
+//       } catch (error) {
+//         console.error(
+//           "Error fetching user profile for userId:",
+//           play.user,
+//           error
+//         );
+//       }
 
-    // ตรวจสอบข้อมูลใน response.data
-    if (response.data && response.data.length > 0) {
-      return response.data;
-    } else {
-      throw new Error("ไม่สามารถปิดรอบได้ หรือไม่พบข้อมูล");
-    }
-  } catch (error) {
-    return "เกิดข้อผิดพลาด กรุณาลองใหม่";
-  }
-}
+//       return {
+//         // type: "box",
+//         // layout: "vertical",
+//         // margin: "md",
+//         // spacing: "sm",
+//         // contents: [
+//         //   {
+//         //     type: "text",
+//         //     text: `${index + 1}) ${userName}`, // แสดงชื่อผู้ใช้ที่ดึงมา
+//         //     size: "md",
+//         //     weight: "bold",
+//         //     color: "#1DB446", // สีเขียวสำหรับชื่อผู้ใช้
+//         //   },
+//         //   {
+//         //     type: "box",
+//         //     layout: "horizontal",
+//         //     contents: [
+//         //       {
+//         //         type: "text",
+//         //         text: `ม้า #${play.subRound.numberRound || play.subRound.id}`,
+//         //         size: "sm",
+//         //         color: "#FF5555", // สีแดงสำหรับม้า
+//         //         flex: 4,
+//         //       },
+//         //       {
+//         //         type: "text",
+//         //         text: `= ${play.betAmount} | ${play.betType}`,
+//         //         size: "sm",
+//         //         color: "#555555", // สีเทาสำหรับรายละเอียด
+//         //         flex: 6,
+//         //         align: "end",
+//         //       },
+//         //     ],
+//         //   },
+//         //   {
+//         //     type: "text",
+//         //     text: `กลุ่ม: ${play.group.groupName || "ไม่ระบุ"}`,
+//         //     size: "sm",
+//         //     color: "#666666", // สีเทาสำหรับชื่อกลุ่ม
+//         //   },
+//         // ],
+//         type: "text",
+//         text: "121212122",
+//       };
+//     })
+//   );
 
-
-async function checkUserPlayBalance(event) {
-  try {
-
-    if (!process.env.API_URL) {
-      throw new Error("API_URL is not defined in .env");
-    }
-
-    const userId = event.source.userId;
-    const idMainRound = await checkMainRoundNow(event);
-
-    const response = await axios.get(
-      `${process.env.API_URL}/transaction-play/latest/user/${userId}/round/${idMainRound}`
-    );
-
-    // ตรวจสอบข้อมูลใน response.data
-    if (response.data) {
-      return response.data;
-    } else {
-      throw new Error("ไม่สามารถปิดรอบได้ หรือไม่พบข้อมูล");
-    }
-  } catch (error) {
-    return "เกิดข้อผิดพลาด กรุณาลองใหม่";
-  }
-}
+//   return {
+//     type: "text",
+//     text: "skfljdlkjgdfjklfljk!", // <-- ให้แน่ใจว่า `text` เป็นสตริงธรรมดา ไม่ใช่เป็นอ็อบเจ็กต์
+//   };
+// }
 
 
 module.exports = {
@@ -775,6 +828,4 @@ module.exports = {
   resetSubRound,
   checkSubRoundData,
   setPlayBet,
-  checkUserPlay,
-  checkUserPlayBalance,
 };

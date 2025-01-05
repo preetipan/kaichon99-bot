@@ -1,5 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
+const { checkUserPlay ,checkPreviousRoundStatus, checkPreviousSubRoundStatus} = require("../BotFunc/playController");
 
 const users = require("../../../models/user");
 
@@ -29,66 +30,195 @@ async function getUserRole(userId) {
 }
 
 //เช็คเงินคงเหลือ
-async function getUserMoney(userId, member) {
+async function getUserMoney(event, userId, member) {
   try {
     const response = await axios.get(`${process.env.API_URL}/user/${userId}`);
     const { id, fund } = response.data || {};
     const userName = member.displayName || "ผู้ใช้";
     const userPictureUrl =
       member.pictureUrl || "https://example.com/default-profile.png";
-    
-      const formattedFund = fund.toLocaleString("en-US");
+    const formattedFund = fund.toLocaleString("en-US");
 
-    return {
-      type: "flex",
-      altText: `ข้อมูลเงินคงเหลือของ ${userName}`,
-      contents: {
-        type: "bubble",
-        size: "giga",
-        body: {
-          type: "box",
-          layout: "horizontal",
-          contents: [
-            {
-              type: "image",
-              url: userPictureUrl,
-              size: "sm",
-              aspectRatio: "1:1",
-              aspectMode: "cover",
-              margin: "sm",
-              flex: 1,
-            },
-            {
-              type: "box",
-              layout: "vertical",
-              contents: [
-                {
-                  type: "text",
-                  text: `รหัส ${id} ${userName}`,
-                  weight: "bold",
-                  size: "lg",
-                  align: "center",
-                  wrap: true,
-                },
-                {
-                  type: "text",
-                  text: `เงินคงเหลือ ${formattedFund} 💰`,
-                  weight: "bold",
-                  size: "md",
-                  margin: "md",
-                  align: "center",
-                  wrap: true,
-                },
-              ],
-              flex: 2,
-            },
-          ],
-          paddingAll: "15px",
-          backgroundColor: "#FFFFFF",
-          cornerRadius: "5px",
+    const userPlay = await checkUserPlay(event);
+    let latestPlay = null;
+
+    // ตรวจสอบว่า userPlay เป็น Array และมีข้อมูลหรือไม่
+    // if (Array.isArray(userPlay) && userPlay.length > 0) {
+    //   latestPlay = userPlay.reduce((latest, current) => {
+    //     return new Date(current.createDate) > new Date(latest.createDate) ? current : latest;
+    //   }, userPlay[0]);
+    // }
+    if (Array.isArray(userPlay) && userPlay.length > 0) {
+      latestPlay = userPlay.reduce((latest, current) => {
+        return current.id > latest.id ? current : latest;
+      }, userPlay[0]);
+    }
+
+    const isOpenMainStatus = await checkPreviousRoundStatus();
+
+    if (latestPlay && isOpenMainStatus) {
+      return {
+        type: "flex",
+        altText: `ข้อมูลเงินคงเหลือของ ${userName}`,
+        contents: {
+          type: "bubble",
+          size: "giga",
+          body: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "box",
+                layout: "horizontal",
+                contents: [
+                  {
+                    type: "image",
+                    url: userPictureUrl,
+                    size: "sm",
+                    aspectRatio: "1:1",
+                    aspectMode: "cover",
+                    margin: "sm",
+                    flex: 1,
+                  },
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                      {
+                        type: "text",
+                        text: `รหัส ${id} ${userName}`,
+                        weight: "bold",
+                        size: "lg",
+                        align: "center",
+                        wrap: true,
+                      },
+                      ...userPlay.map((play) => ({
+                        type: "box",
+                        layout: "horizontal",
+                        contents: [
+                          {
+                            type: "text",
+                            text: `ยกที่ ${play.subRound.numberRound} ${play.subRound.price}`,
+                            weight: "bold",
+                            margin: "sm",
+                            size: "sm",
+                            align: "start",
+                            wrap: true,
+                            color: "#FFFFFF",
+                          },
+                          {
+                            type: "text",
+                            text: `${play.betAmount}`,
+                            weight: "bold",
+                            margin: "sm",
+                            size: "sm",
+                            align: "end",
+                            wrap: true,
+                            color: "#FFFFFF",
+                          },
+                        ],
+                        alignItems: "center",
+                        backgroundColor: play.betType === 'BLUE' ? '#3399FF' : (play.betType === 'RED' ? '#fc0000' : '#FFFFFF'),
+                        cornerRadius: "0px",
+                        margin: "sm",
+                      })),
+                      {
+                        type: "text",
+                        text: `เล่นได้อีก ${latestPlay.balance}`,
+                        weight: "bold",
+                        color: "#00FF00",
+                        size: "sm",
+                        align: "end",
+                        margin: "md",
+                        wrap: true,
+                      },
+                    ],
+                    flex: 2,
+                  },
+                ],
+                paddingAll: "15px",
+                backgroundColor: "#FFFFFF",
+                cornerRadius: "5px",
+              },
+              {
+                type: "box",
+                layout: "horizontal",
+                contents: [
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                      {
+                        type: "text",
+                        text: `เงินทั้งหมด ${formattedFund} 💰`,
+                        weight: "bold",
+                        size: "md",
+                        align: "end",
+                        wrap: true,
+                      },
+                    ],
+                  },
+                ],
+                paddingAll: "15px",
+                backgroundColor: "#FFFFFF",
+                cornerRadius: "5px",
+              },
+            ],
+          },
         },
-      },
-    };
+      };
+    } else {
+      return {
+        type: "flex",
+        altText: `ข้อมูลเงินคงเหลือของ ${userName}`,
+        contents: {
+          type: "bubble",
+          size: "giga",
+          body: {
+            type: "box",
+            layout: "horizontal",
+            contents: [
+              {
+                type: "image",
+                url: userPictureUrl,
+                size: "sm",
+                aspectRatio: "1:1",
+                aspectMode: "cover",
+                margin: "sm",
+                flex: 1,
+              },
+              {
+                type: "box",
+                layout: "vertical",
+                contents: [
+                  {
+                    type: "text",
+                    text: `รหัส ${id} ${userName}`,
+                    weight: "bold",
+                    size: "lg",
+                    align: "center",
+                    wrap: true,
+                  },
+                  {
+                    type: "text",
+                    text: `เงินคงเหลือ ${formattedFund} 💰`,
+                    weight: "bold",
+                    size: "md",
+                    margin: "md",
+                    align: "center",
+                    wrap: true,
+                  },
+                ],
+                flex: 2,
+              },
+            ],
+            paddingAll: "15px",
+            backgroundColor: "#FFFFFF",
+            cornerRadius: "5px",
+          },
+        },
+      };
+    }
   } catch (error) {
     console.error(
       "Error fetching user money:",
@@ -116,7 +246,6 @@ async function checkIfUserExists(userId) {
 
 // เพิ่มสมาชิก
 async function AddMember(member, userId, groupId) {
-
   try {
     const response = await axios.post(`${process.env.API_URL}/user`, {
       userID: userId,
@@ -158,10 +287,13 @@ async function AddMember(member, userId, groupId) {
 // ฟังก์ชันอัพเดตข้อมูลผู้ใช้ในกรณีที่เคยเข้าร่วมแล้วออกไป
 async function updateMemberData(userId, groupId, { status = false }) {
   try {
-    const response = await axios.patch(`${process.env.API_URL}/user/${userId}`, {
-      groupId: groupId, // ใช้ groupId ให้ถูกต้อง
-      isActive: status,
-    });
+    const response = await axios.patch(
+      `${process.env.API_URL}/user/${userId}`,
+      {
+        groupId: groupId, // ใช้ groupId ให้ถูกต้อง
+        isActive: status,
+      }
+    );
 
     // ตรวจสอบสถานะการตอบกลับจาก API
     if (response.status === 200 || response.status === 204) {
@@ -186,10 +318,13 @@ async function updateMemberData(userId, groupId, { status = false }) {
 async function updateAdminData(userId, groupId, { role }) {
   try {
     // ทำการส่งคำขออัปเดตข้อมูล
-    const response = await axios.patch(`${process.env.API_URL}/user/${userId}`, {
-      groupId: groupId,
-      role: role,
-    });
+    const response = await axios.patch(
+      `${process.env.API_URL}/user/${userId}`,
+      {
+        groupId: groupId,
+        role: role,
+      }
+    );
 
     console.log(`response : `, response);
 
@@ -198,12 +333,21 @@ async function updateAdminData(userId, groupId, { role }) {
       console.log(`User ${userId} data updated:`, response.data);
       return { success: true, message: "Data updated successfully." };
     } else {
-      console.error(`Failed to update data for User ${userId}:`, response.status);
-      return { success: false, message: `Failed with status code ${response.status}` };
+      console.error(
+        `Failed to update data for User ${userId}:`,
+        response.status
+      );
+      return {
+        success: false,
+        message: `Failed with status code ${response.status}`,
+      };
     }
   } catch (error) {
     // ตรวจสอบข้อผิดพลาดในกรณีที่เกิด exception
-    console.error("Error updating member data:", error.response?.data || error.message);
+    console.error(
+      "Error updating member data:",
+      error.response?.data || error.message
+    );
     return { success: false, message: error.response?.data || error.message };
   }
 }
@@ -224,7 +368,6 @@ async function checkUserData(userId) {
     );
   }
 }
-
 
 module.exports = {
   getSortedUserDetails,

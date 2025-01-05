@@ -35,6 +35,8 @@ const {
   setCloseOdds,
   setNumberSubRound,
   checkSubRoundData,
+  setPlayBet,
+  checkUserPlayBalance,
 } = require("../BotFunc/playController");
 const { checkUserRole } = require("../BotFunc/usePermission");
 
@@ -518,7 +520,7 @@ async function handleUserCheckMoney(event) {
     }
 
     // ดึงข้อมูลยอดเงินของผู้ใช้
-    const userDetailsMessage = await getUserMoney(userId, member);
+    const userDetailsMessage = await getUserMoney(event, userId, member);
     return client.replyMessage(event.replyToken, [userDetailsMessage]);
   } catch (error) {
     console.error("Error in handleUserCheckMoney:", error);
@@ -640,6 +642,17 @@ async function handleCloseMainPlayCommand(event) {
       return null;
     }
 
+    //ตรวจสอบสถานะรอบเล่นย่อย
+    const isSubRoundOpen = await checkPreviousSubRoundStatus();
+    if (isSubRoundOpen) {
+      console.log("ยังไม่ได้ตั้ง!");
+      const replyMessage = {
+        type: "text",
+        text: "ยังไม่ได้ปิดราคา กรุณาปิดราคาก่อน!",
+      };
+      return await client.replyMessage(event.replyToken, replyMessage);
+    }
+
     let closeMainMessage;
 
     if (playInday) {
@@ -649,10 +662,7 @@ async function handleCloseMainPlayCommand(event) {
       return null;
     }
 
-    return client.replyMessage(event.replyToken, {
-      type: "text",
-      text: closeMainMessage,
-    });
+    return client.replyMessage(event.replyToken, closeMainMessage);
   } catch (error) {
     console.error("Error fetching user details:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาดในการเปิดรอบ กรุณาลองใหม่");
@@ -822,57 +832,51 @@ async function handleUserBet(event, { type, amount }) {
   try {
     const userId = event.source.userId;
     const isOpenMainStatus = await checkPreviousRoundStatus();
-
     if (!isOpenMainStatus) {
-      const replyMessage = {
-        type: "text",
-        text: "ยังไม่เปิดรอบเล่น!!!",
-      };
-      return replyMessage;
+      return { type: "text", text: "ยังไม่เปิดรอบเล่น!!!" };
     }
+
     const isSubRoundOpen = await checkPreviousSubRoundStatus();
     if (!isSubRoundOpen) {
-      const replyMessage = {
-        type: "text",
-        text: "❌❌ ยังไม่ได้ตั้งราคา !! ❌❌",
-      };
-      return replyMessage;
+      return { type: "text", text: "❌❌ ยังไม่ได้ตั้งราคา !! ❌❌" };
     }
 
     if (isNaN(amount) || amount <= 0) {
-      const replyMessage = {
-        type: "text",
-        text: "กรุณาระบุจำนวนเงินเดิมพันให้ถูกต้อง!!!",
-      };
-      return replyMessage;
+      return { type: "text", text: "กรุณาระบุจำนวนเงินเดิมพันให้ถูกต้อง!!!" };
     }
 
     const userData = await checkUserData(userId);
-    const funds = userData.fund;
+    let funds = userData?.fund || 0;
+
+    const checkBalance = await checkUserPlayBalance(event);
+    if (checkBalance && typeof checkBalance.balance === "number") {
+      funds = checkBalance.balance;
+    }
+
     const formattedFund = funds.toLocaleString("en-US");
 
     if (amount > funds) {
-      const replyMessage = {
+      return {
         type: "text",
         text: `เดิมพันผิดพลาด \n ยอดเงินคงเหลือ ${formattedFund} บาท`,
       };
-      return replyMessage;
     }
+
     const subround_data = await checkSubRoundData(event);
-    const max_amounts = subround_data.max_amount;
+    const max_amounts = subround_data?.max_amount || 0;
     const formattedMax = max_amounts.toLocaleString("en-US");
+
     if (amount > max_amounts) {
-      const replyMessage = {
+      return {
         type: "text",
         text: `ยอดเดิมพันสูงเกินไป!! \n เล่นได้ไม่เกิน ${formattedMax} บาท`,
       };
-      return replyMessage;
     }
 
-    const round_id = subround_data.round.id;
-    const subround_id = subround_data.id;
+    const round_id = subround_data?.round?.id;
+    const subround_id = subround_data?.id;
     const profile = await client.getProfile(userId);
-    const userName = profile.displayName;
+    const userName = profile?.displayName || "ไม่ทราบชื่อ";
 
     const bet_type = type === "ด" ? "RED" : "BLUE";
     const backgroundColor = type === "ด" ? "#ffcdd2" : "#bbdefb";
@@ -890,81 +894,82 @@ async function handleUserBet(event, { type, amount }) {
       balance: totalBalance,
     };
 
-    const replyMessage = {
-      type: "flex",
-      altText: `เดิมพัน${type} ${amount}บาท`,
-      contents: {
-        type: "bubble",
-        size: "kilo",
-        body: {
-          type: "box",
-          layout: "vertical",
-          contents: [
-            {
-              type: "box",
-              layout: "horizontal",
-              contents: [
-                {
-                  type: "image",
-                  url: profile.pictureUrl || "https://via.placeholder.com/100",
-                  size: "xs",
-                  aspectMode: "cover",
-                  aspectRatio: "1:1",
-                  margin: "sm",
-                  flex: 1,
-                },
-                {
-                  type: "box",
-                  layout: "vertical",
-                  contents: [
-                    {
-                      type: "text",
-                      text: `รหัส ${userData.id} ${userName}`,
-                      size: "sm",
-                      weight: "regular",
-                    },
-                    {
-                      type: "text",
-                      text: `ยก ${
-                        subround_data.numberRound
-                      } ✅ ${type}=${amount.toLocaleString()} #ตง10/9`,
-                      size: "xs",
-                      color: "#000000",
-                    },
-                  ],
-                  flex: 3,
-                  spacing: "xs",
-                  paddingStart: "md",
-                },
-              ],
-              spacing: "md",
-            },
-          ],
-          paddingAll: "sm",
-          background: {
-            type: "linearGradient",
-            angle: "45deg",
-            startColor: backgroundColor,
-            endColor: endColor,
-            centerColor: backgroundColor,
-          },
-        },
-        styles: {
-          body: {
-            backgroundColor: backgroundColor,
-          },
-        },
-      },
-    };
+    const betResult = await setPlayBet(event, betData);
 
-    return replyMessage;
+    if (betResult) {
+      return {
+        type: "flex",
+        altText: `เดิมพัน${type} ${amount}บาท`,
+        contents: {
+          type: "bubble",
+          size: "kilo",
+          body: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "box",
+                layout: "horizontal",
+                contents: [
+                  {
+                    type: "image",
+                    url:
+                      profile?.pictureUrl || "https://via.placeholder.com/100",
+                    size: "xs",
+                    aspectMode: "cover",
+                    aspectRatio: "1:1",
+                    margin: "sm",
+                    flex: 1,
+                  },
+                  {
+                    type: "box",
+                    layout: "vertical",
+                    contents: [
+                      {
+                        type: "text",
+                        text: `รหัส ${userData?.id || "N/A"} ${userName}`,
+                        size: "sm",
+                        weight: "regular",
+                      },
+                      {
+                        type: "text",
+                        text: `ยก ${
+                          subround_data?.numberRound || "-"
+                        } ✅ ${type}=${amount.toLocaleString()} #ตง10/9`,
+                        size: "xs",
+                        color: "#000000",
+                      },
+                    ],
+                    flex: 3,
+                    spacing: "xs",
+                    paddingStart: "md",
+                  },
+                ],
+                spacing: "md",
+              },
+            ],
+            paddingAll: "sm",
+            background: {
+              type: "linearGradient",
+              angle: "45deg",
+              startColor: backgroundColor,
+              endColor: endColor,
+              centerColor: backgroundColor,
+            },
+          },
+          styles: {
+            body: {
+              backgroundColor: backgroundColor,
+            },
+          },
+        },
+      };
+    } else {
+      return { type: "text", text: "เดิมพันผิดพลาด!!!" };
+    }
   } catch (error) {
     console.error("Error in handleUserBet:", error);
-    const replyMessage = {
-      type: "text",
-      text: "กรุณาลองใหม่อีกครั้ง.",
-    };
-    return replyMessage;
+    return { type: "text", text: "กรุณาลองใหม่อีกครั้ง." };
   }
 }
 
@@ -998,7 +1003,7 @@ function calculateOddsText(type, oddsValue) {
   }): รอง ${odds.รอง} ได้ 10`;
 }
 
-// Helper function to send error messages
+
 function sendErrorMessage(event, message) {
   return client.replyMessage(event.replyToken, {
     type: "text",
