@@ -116,8 +116,10 @@ function getBankAccountDetails(member) {
 }
 
 // ฟังก์ชันฝากเงินสด
-async function depositMoneyCash(id, amount) {
+async function depositMoneyCash(id, amount, event) {
   try {
+
+    const userId = event.source.userId;
     // ดึงข้อมูลผู้ใช้ปัจจุบัน
     const response = await axios.get(`${process.env.API_URL}/user/id/${id}`);
     const { fund } = response.data;
@@ -128,7 +130,7 @@ async function depositMoneyCash(id, amount) {
     //CREDIT = 2
     // อัปเดตข้อมูลเงินใน API
     const updateResponse = await axios.patch(
-      `${process.env.API_URL}/user/id/${id}`,
+      `${process.env.API_URL}/user/id/${id}/${userId}`,
       {
         fund: updatedFund,
         statusFund: 1,
@@ -159,8 +161,9 @@ async function depositMoneyCash(id, amount) {
 }
 
 //ฝากเงินเครดิต
-async function depositMoneyCredit(id, amount) {
+async function depositMoneyCredit(id, amount, event) {
   try {
+    const userId = event.source.userId;
     // ดึงข้อมูลผู้ใช้ปัจจุบัน
     const response = await axios.get(`${process.env.API_URL}/user/id/${id}`);
     const { fund } = response.data;
@@ -170,7 +173,7 @@ async function depositMoneyCredit(id, amount) {
 
     // อัปเดตข้อมูลเงินใน API
     const updateResponse = await axios.patch(
-      `${process.env.API_URL}/user/id/${id}`,
+      `${process.env.API_URL}/user/id/${id}/${userId}`,
       { fund: updatedFund, statusFund: 2 }
     );
 
@@ -197,8 +200,9 @@ async function depositMoneyCredit(id, amount) {
 }
 
 // ฟังก์ชันถอนเงิน
-async function withdrawMoney(id, amount) {
+async function withdrawMoney(id, amount, event) {
   try {
+    const userId = event.source.userId;
     // ดึงข้อมูลผู้ใช้ปัจจุบัน
     const response = await axios.get(`${process.env.API_URL}/user/id/${id}`);
     const { fund } = response.data;
@@ -213,7 +217,7 @@ async function withdrawMoney(id, amount) {
 
     // อัปเดตข้อมูลในระบบ
     const updateResponse = await axios.patch(
-      `${process.env.API_URL}/user/id/${id}`,
+      `${process.env.API_URL}/user/id/${id}/${userId}`,
       {
         fund: updatedFund,
       }

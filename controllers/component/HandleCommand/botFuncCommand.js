@@ -145,7 +145,7 @@ async function handleAddAllMembers(event) {
   }
 }
 
-// Handle เพิ่มสิทธิ์ แอดมิน
+ // Handle เพิ่มสิทธิ์ แอดมิน
 async function handleUpdateAdminRole(event, userMessage, admin) {
   try {
     // ตรวจสอบสิทธิ์ของผู้ใช้ (Superadmin หรือ Admin)
@@ -226,6 +226,8 @@ async function handleTopUpCredit(event, userMessage) {
       "Superadmin",
       "Admin",
     ]);
+
+    console.log("permissionResult:", permissionResult);
     if (!permissionResult.success) {
       return null;
     }
@@ -248,9 +250,9 @@ async function handleTopUpCredit(event, userMessage) {
     }
 
     // ดำเนินการเติมเงิน
-    const response = await depositMoneyCredit(userCode, amount);
+    const response = await depositMoneyCredit(userCode, amount, event);
     if (response && response.type === "text") {
-      return client.replyMessage(event.replyToken, response); // ส่งข้อความที่ได้จาก depositMoneyCredit
+      return client.replyMessage(event.replyToken, response);
     } else {
       throw new Error(response.message || "ไม่สามารถเติมเงินได้");
     }
@@ -283,8 +285,8 @@ async function handleCashCustomer(event, userMessage) {
       );
     }
 
-    const userCode = match[1]; // รหัสผู้ใช้
-    const amount = parseInt(match[2], 10); // จำนวนเงิน
+    const userCode = match[1];
+    const amount = parseInt(match[2], 10);
 
     // ตรวจสอบว่าจำนวนเงินต้องเป็นค่าบวก
     if (amount <= 0) {
@@ -292,7 +294,7 @@ async function handleCashCustomer(event, userMessage) {
     }
 
     // ดำเนินการบันทึกข้อมูลลูกค้าเงินสด
-    const response = await depositMoneyCash(userCode, amount); // ฟังก์ชันฝากเงินสด
+    const response = await depositMoneyCash(userCode, amount, event); // ฟังก์ชันฝากเงินสด
     if (response && response.type === "text") {
       return client.replyMessage(event.replyToken, response); // ส่งข้อความที่ได้จาก depositMoneyCash
     } else {
@@ -336,7 +338,7 @@ async function handleWithdrawMoney(event, userMessage) {
     }
 
     // ดำเนินการถอนเงิน
-    const response = await withdrawMoney(userCode, amount); // ฟังก์ชันถอนเงิน
+    const response = await withdrawMoney(userCode, amount, event); // ฟังก์ชันถอนเงิน
     if (response && response.type === "text") {
       return client.replyMessage(event.replyToken, response); // ส่งข้อความที่ได้จาก withdrawMoney
     } else {
@@ -662,7 +664,11 @@ async function handleCloseMainPlayCommand(event) {
       return null;
     }
 
-    return client.replyMessage(event.replyToken, closeMainMessage);
+    return client.replyMessage(event.replyToken, {
+      type: "text",
+      text: closeMainMessage || "ไม่สามารถปิดรอบได้! กรุณาลองใหม่.",
+    });
+    
   } catch (error) {
     console.error("Error fetching user details:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาดในการเปิดรอบ กรุณาลองใหม่");
@@ -713,44 +719,108 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
 
     let oddsText;
 
-    const fixedOddsText = {
-      ตร: "\n• ฝั่งต่อ: ต่อ 10 ได้ 9\n• ฝั่งรอง: ต่อ 10 ได้ 9",
-      สง: "\n• ฝั่งต่อ (น้ำเงิน): ต่อ 10 ได้ 8\n• ฝั่งรอง (แดง): ต่อ 10 ได้ 10",
-      สด: "\n• ฝั่งต่อ (แดง): ต่อ 10 ได้ 8\n• ฝั่งรอง (น้ำเงิน): ต่อ 10 ได้ 10",
-    };
+// กำหนดข้อความอัตราต่อรองแบบคงที่
+const fixedOddsText = {
+  ตร: "\n• ฝั่งต่อ: ต่อ 10 ได้ 9\n• ฝั่งรอง: ต่อ 10 ได้ 9",
+  สง: "\n• ฝั่งต่อ (น้ำเงิน): ต่อ 10 ได้ 8\n• ฝั่งรอง (แดง): ต่อ 10 ได้ 10",
+  สด: "\n• ฝั่งต่อ (แดง): ต่อ 10 ได้ 8\n• ฝั่งรอง (น้ำเงิน): ต่อ 10 ได้ 10",
+};
 
-    if (fixedOddsText[type]) {
-      oddsText = fixedOddsText[type];
-    } else if ((type === "ด" || type === "ง") && !isNaN(oddsValue)) {
-      oddsText = calculateOddsText(type, oddsValue);
-    } else {
-      oddsText = "\n• ไม่สามารถคำนวณอัตราได้ เนื่องจากข้อมูลไม่ถูกต้อง";
-    }
+// ตรวจสอบและคำนวณข้อความ oddsText
+if (fixedOddsText[type]) {
+  oddsText = fixedOddsText[type];
+} else if ((type === "ด" || type === "ง") && !isNaN(oddsValue)) {
+  oddsText = calculateOddsText(type, oddsValue);
+} else {
+  oddsText = "\n• ไม่สามารถคำนวณอัตราได้ เนื่องจากข้อมูลไม่ถูกต้อง";
+}
 
-    let oddsToSend = type;
-    if (type !== "ตร" && type !== "สง" && type !== "สด" && !isNaN(oddsValue)) {
-      oddsToSend = type + oddsValue;
-    }
+// สีพื้นหลังตามประเภท
+let backgroundColor;
+if (type === "ตร") {
+  backgroundColor = "#00FF00"; // เขียว
+} else if (type === "สง" || type === "ง") {
+  backgroundColor = "#0000FF"; // น้ำเงิน
+} else if (type === "สด" || type === "ด") {
+  backgroundColor = "#FF0000"; // แดง
+} else {
+  backgroundColor = "#FFFFFF"; // ขาว (ค่าเริ่มต้น)
+}
 
-    await setNumberSubRound(event);
-    // เรียก setOpenOdds และตรวจสอบผลลัพธ์
-    const addOdds = await setOpenOdds(event, oddsToSend, maxAmount);
-    if (addOdds) {
-      const replyMessage = {
-        type: "text",
-        text: `จำนวนเงินสูงสุด: ${maxAmount}${oddsText}`,
-      };
+// กำหนดข้อความ oddsToSend
+let oddsToSend = type;
+if (type !== "ตร" && type !== "สง" && type !== "สด" && !isNaN(oddsValue)) {
+  oddsToSend = type + oddsValue;
+}
 
-      await client.replyMessage(event.replyToken, replyMessage);
-    } else {
-      // ถ้า setOpenOdds ไม่ทำงาน
-      console.log("ไม่สามารถตั้งราคาได้");
-      const replyMessage = {
-        type: "text",
-        text: "ไม่สามารถตั้งราคาได้!!!",
-      };
-      return await client.replyMessage(event.replyToken, replyMessage);
-    }
+// ตั้งค่ารอบย่อย
+await setNumberSubRound(event);
+
+// เรียกใช้ setOpenOdds และตรวจสอบผลลัพธ์
+const addOdds = await setOpenOdds(event, oddsToSend, maxAmount);
+
+if (addOdds) {
+  // หากตั้งราคาได้สำเร็จ
+  const flexMessage = {
+    type: "flex",
+    altText: "อัตราต่อรอง",
+    contents: {
+      type: "bubble",
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "อัตราต่อรอง",
+            weight: "bold",
+            size: "lg",
+            color: "#FFFFFF",
+            align: "center",
+          },
+          {
+            type: "text",
+            text: `ประเภท: ${type}`,
+            size: "md",
+            color: "#FFFFFF",
+            align: "center",
+            margin: "md",
+          },
+          {
+            type: "text",
+            text: oddsText,
+            size: "sm",
+            wrap: true,
+            color: "#FFFFFF",
+            margin: "md",
+          },
+          {
+            type: "text",
+            text: `จำนวนเงินสูงสุด: ${maxAmount}`,
+            size: "sm",
+            wrap: true,
+            color: "#FFFFFF",
+            margin: "lg",
+          },
+        ],
+        backgroundColor: backgroundColor, // ตั้งค่าพื้นหลังตามประเภท
+        paddingAll: "20px",
+      },
+    },
+  };
+
+  // ส่งข้อความ
+  await client.replyMessage(event.replyToken, flexMessage);
+} else {
+  // หากตั้งราคาไม่ได้
+  console.log("ไม่สามารถตั้งราคาได้");
+  const replyMessage = {
+    type: "text",
+    text: "ไม่สามารถตั้งราคาได้!!!",
+  };
+  await client.replyMessage(event.replyToken, replyMessage);
+}
+
   } catch (error) {
     // จัดการข้อผิดพลาด
     console.error("เกิดข้อผิดพลาดใน handleSetOdds:", error);
