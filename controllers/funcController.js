@@ -396,8 +396,10 @@ async function handleTextMessage(event) {
       }
 
       // สรุปผล
-      if (userMessage.toLowerCase().startsWith("S")) {
-        return "";
+      if (userMessage.toLowerCase().startsWith("s")) {
+        const result = userMessage.toLowerCase().slice(1);
+
+        console.log("result : " + result);
       }
 
       // ยืนยันผล

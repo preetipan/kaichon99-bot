@@ -37,6 +37,8 @@ const {
   checkSubRoundData,
   setPlayBet,
   checkUserPlayBalance,
+  fetchPlaySummary,
+  generateFlexSummaryMessage,
 } = require("../BotFunc/playController");
 const { checkUserRole } = require("../BotFunc/usePermission");
 
@@ -145,7 +147,7 @@ async function handleAddAllMembers(event) {
   }
 }
 
- // Handle เพิ่มสิทธิ์ แอดมิน
+// Handle เพิ่มสิทธิ์ แอดมิน
 async function handleUpdateAdminRole(event, userMessage, admin) {
   try {
     // ตรวจสอบสิทธิ์ของผู้ใช้ (Superadmin หรือ Admin)
@@ -635,43 +637,58 @@ async function handleOpenMainPlayCommand(event) {
 // Handle ปิดรอบเล่นหลัก
 async function handleCloseMainPlayCommand(event) {
   try {
-    const playInday = await checkOpenPlayInday(event);
+    // ตรวจสอบสิทธิ์ผู้ใช้
     const permissionResult = await checkUserRole(event, [
       "Superadmin",
       "Admin",
     ]);
     if (!permissionResult.success) {
-      return null;
+      return client.replyMessage(event.replyToken, {
+        type: "text",
+        text: "คุณไม่มีสิทธิ์ในการปิดรอบ",
+      });
     }
 
-    //ตรวจสอบสถานะรอบเล่นย่อย
+    // ตรวจสอบว่ามีรอบที่เปิดอยู่หรือไม่
+    const playInday = await checkOpenPlayInday(event);
+    if (!playInday) {
+      return client.replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบรอบที่เปิดอยู่",
+      });
+    }
+
+    // ตรวจสอบสถานะรอบเล่นย่อย
     const isSubRoundOpen = await checkPreviousSubRoundStatus();
     if (isSubRoundOpen) {
-      console.log("ยังไม่ได้ตั้ง!");
-      const replyMessage = {
+      console.log("ยังไม่ได้ปิดราคา");
+      return client.replyMessage(event.replyToken, {
         type: "text",
         text: "ยังไม่ได้ปิดราคา กรุณาปิดราคาก่อน!",
-      };
-      return await client.replyMessage(event.replyToken, replyMessage);
+      });
     }
 
-    let closeMainMessage;
+    // ดำเนินการปิดรอบและสร้างข้อความสรุป
+    const closeMainMessage = await updateMainPlay(event, "close");
+    const summary = await fetchPlaySummary(event);
+    const flexMessage = await generateFlexSummaryMessage(summary);
 
-    if (playInday) {
-      closeMainMessage = await updateMainPlay(event, "close");
-      await resetSubRound(event);
-    } else {
-      return null;
-    }
+    // สร้างและส่งข้อความตอบกลับ
+    const messages = [
+      {
+        type: "text",
+        text: closeMainMessage || "ปิดรอบเรียบร้อย",
+      },
+      flexMessage,
+    ].filter(Boolean); // กรองข้อความที่เป็น null/undefined ออก
 
+    return client.replyMessage(event.replyToken, messages);
+  } catch (error) {
+    console.error("Error in handleCloseMainPlayCommand:", error);
     return client.replyMessage(event.replyToken, {
       type: "text",
-      text: closeMainMessage || "ไม่สามารถปิดรอบได้! กรุณาลองใหม่.",
+      text: "เกิดข้อผิดพลาดในการปิดรอบ กรุณาลองใหม่",
     });
-    
-  } catch (error) {
-    console.error("Error fetching user details:", error);
-    return sendErrorMessage(event, "เกิดข้อผิดพลาดในการเปิดรอบ กรุณาลองใหม่");
   }
 }
 
@@ -719,108 +736,107 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
 
     let oddsText;
 
-// กำหนดข้อความอัตราต่อรองแบบคงที่
-const fixedOddsText = {
-  ตร: "\n• ฝั่งต่อ: ต่อ 10 ได้ 9\n• ฝั่งรอง: ต่อ 10 ได้ 9",
-  สง: "\n• ฝั่งต่อ (น้ำเงิน): ต่อ 10 ได้ 8\n• ฝั่งรอง (แดง): ต่อ 10 ได้ 10",
-  สด: "\n• ฝั่งต่อ (แดง): ต่อ 10 ได้ 8\n• ฝั่งรอง (น้ำเงิน): ต่อ 10 ได้ 10",
-};
+    // กำหนดข้อความอัตราต่อรองแบบคงที่
+    const fixedOddsText = {
+      ตร: "\n• ฝั่งต่อ: ต่อ 10 ได้ 9\n• ฝั่งรอง: ต่อ 10 ได้ 9",
+      สง: "\n• ฝั่งต่อ (น้ำเงิน): ต่อ 10 ได้ 8\n• ฝั่งรอง (แดง): ต่อ 10 ได้ 10",
+      สด: "\n• ฝั่งต่อ (แดง): ต่อ 10 ได้ 8\n• ฝั่งรอง (น้ำเงิน): ต่อ 10 ได้ 10",
+    };
 
-// ตรวจสอบและคำนวณข้อความ oddsText
-if (fixedOddsText[type]) {
-  oddsText = fixedOddsText[type];
-} else if ((type === "ด" || type === "ง") && !isNaN(oddsValue)) {
-  oddsText = calculateOddsText(type, oddsValue);
-} else {
-  oddsText = "\n• ไม่สามารถคำนวณอัตราได้ เนื่องจากข้อมูลไม่ถูกต้อง";
-}
+    // ตรวจสอบและคำนวณข้อความ oddsText
+    if (fixedOddsText[type]) {
+      oddsText = fixedOddsText[type];
+    } else if ((type === "ด" || type === "ง") && !isNaN(oddsValue)) {
+      oddsText = calculateOddsText(type, oddsValue);
+    } else {
+      oddsText = "\n• ไม่สามารถคำนวณอัตราได้ เนื่องจากข้อมูลไม่ถูกต้อง";
+    }
 
-// สีพื้นหลังตามประเภท
-let backgroundColor;
-if (type === "ตร") {
-  backgroundColor = "#00FF00"; // เขียว
-} else if (type === "สง" || type === "ง") {
-  backgroundColor = "#0000FF"; // น้ำเงิน
-} else if (type === "สด" || type === "ด") {
-  backgroundColor = "#FF0000"; // แดง
-} else {
-  backgroundColor = "#FFFFFF"; // ขาว (ค่าเริ่มต้น)
-}
+    // สีพื้นหลังตามประเภท
+    let backgroundColor;
+    if (type === "ตร") {
+      backgroundColor = "#00FF00"; // เขียว
+    } else if (type === "สง" || type === "ง") {
+      backgroundColor = "#0000FF"; // น้ำเงิน
+    } else if (type === "สด" || type === "ด") {
+      backgroundColor = "#FF0000"; // แดง
+    } else {
+      backgroundColor = "#FFFFFF"; // ขาว (ค่าเริ่มต้น)
+    }
 
-// กำหนดข้อความ oddsToSend
-let oddsToSend = type;
-if (type !== "ตร" && type !== "สง" && type !== "สด" && !isNaN(oddsValue)) {
-  oddsToSend = type + oddsValue;
-}
+    // กำหนดข้อความ oddsToSend
+    let oddsToSend = type;
+    if (type !== "ตร" && type !== "สง" && type !== "สด" && !isNaN(oddsValue)) {
+      oddsToSend = type + oddsValue;
+    }
 
-// ตั้งค่ารอบย่อย
-await setNumberSubRound(event);
+    // ตั้งค่ารอบย่อย
+    await setNumberSubRound(event);
 
-// เรียกใช้ setOpenOdds และตรวจสอบผลลัพธ์
-const addOdds = await setOpenOdds(event, oddsToSend, maxAmount);
+    // เรียกใช้ setOpenOdds และตรวจสอบผลลัพธ์
+    const addOdds = await setOpenOdds(event, oddsToSend, maxAmount);
 
-if (addOdds) {
-  // หากตั้งราคาได้สำเร็จ
-  const flexMessage = {
-    type: "flex",
-    altText: "อัตราต่อรอง",
-    contents: {
-      type: "bubble",
-      body: {
-        type: "box",
-        layout: "vertical",
-        contents: [
-          {
-            type: "text",
-            text: "อัตราต่อรอง",
-            weight: "bold",
-            size: "lg",
-            color: "#FFFFFF",
-            align: "center",
+    if (addOdds) {
+      // หากตั้งราคาได้สำเร็จ
+      const flexMessage = {
+        type: "flex",
+        altText: "อัตราต่อรอง",
+        contents: {
+          type: "bubble",
+          body: {
+            type: "box",
+            layout: "vertical",
+            contents: [
+              {
+                type: "text",
+                text: "อัตราต่อรอง",
+                weight: "bold",
+                size: "lg",
+                color: "#FFFFFF",
+                align: "center",
+              },
+              {
+                type: "text",
+                text: `ประเภท: ${type}`,
+                size: "md",
+                color: "#FFFFFF",
+                align: "center",
+                margin: "md",
+              },
+              {
+                type: "text",
+                text: oddsText,
+                size: "sm",
+                wrap: true,
+                color: "#FFFFFF",
+                margin: "md",
+              },
+              {
+                type: "text",
+                text: `จำนวนเงินสูงสุด: ${maxAmount}`,
+                size: "sm",
+                wrap: true,
+                color: "#FFFFFF",
+                margin: "lg",
+              },
+            ],
+            backgroundColor: backgroundColor, // ตั้งค่าพื้นหลังตามประเภท
+            paddingAll: "20px",
           },
-          {
-            type: "text",
-            text: `ประเภท: ${type}`,
-            size: "md",
-            color: "#FFFFFF",
-            align: "center",
-            margin: "md",
-          },
-          {
-            type: "text",
-            text: oddsText,
-            size: "sm",
-            wrap: true,
-            color: "#FFFFFF",
-            margin: "md",
-          },
-          {
-            type: "text",
-            text: `จำนวนเงินสูงสุด: ${maxAmount}`,
-            size: "sm",
-            wrap: true,
-            color: "#FFFFFF",
-            margin: "lg",
-          },
-        ],
-        backgroundColor: backgroundColor, // ตั้งค่าพื้นหลังตามประเภท
-        paddingAll: "20px",
-      },
-    },
-  };
+        },
+      };
 
-  // ส่งข้อความ
-  await client.replyMessage(event.replyToken, flexMessage);
-} else {
-  // หากตั้งราคาไม่ได้
-  console.log("ไม่สามารถตั้งราคาได้");
-  const replyMessage = {
-    type: "text",
-    text: "ไม่สามารถตั้งราคาได้!!!",
-  };
-  await client.replyMessage(event.replyToken, replyMessage);
-}
-
+      // ส่งข้อความ
+      await client.replyMessage(event.replyToken, flexMessage);
+    } else {
+      // หากตั้งราคาไม่ได้
+      console.log("ไม่สามารถตั้งราคาได้");
+      const replyMessage = {
+        type: "text",
+        text: "ไม่สามารถตั้งราคาได้!!!",
+      };
+      await client.replyMessage(event.replyToken, replyMessage);
+    }
   } catch (error) {
     // จัดการข้อผิดพลาด
     console.error("เกิดข้อผิดพลาดใน handleSetOdds:", error);
@@ -1072,7 +1088,6 @@ function calculateOddsText(type, oddsValue) {
     side === "แดง" ? "น้ำเงิน" : "แดง"
   }): รอง ${odds.รอง} ได้ 10`;
 }
-
 
 function sendErrorMessage(event, message) {
   return client.replyMessage(event.replyToken, {

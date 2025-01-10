@@ -1,5 +1,19 @@
 const axios = require("axios");
 require("dotenv").config();
+const { Client } = require("@line/bot-sdk");
+const { channelAccessToken } = require("../../../config");
+const client = new Client({ channelAccessToken });
+
+// ฟังก์ชันเพื่อดึงชื่อผู้ใช้จาก userID
+async function getUserNameFromUserID(userID) {
+  try {
+    const profile = await client.getProfile(userID);
+    return profile.displayName; // คืนค่าเฉพาะชื่อที่แสดง
+  } catch (error) {
+    console.error('Error fetching user profile: ', error);
+    return userID; // กรณีมีข้อผิดพลาด ให้แสดง userID แทน
+  }
+}
 
 // ฟังก์ชันเปิด-ปิด บ้านไก่ชน
 async function setPlayInday(event, openPlay) {
@@ -463,7 +477,6 @@ async function checkSubRoundNow(event) {
   }
 }
 
-
 //ฟังก์ชันเช็คข้อมูลรอบเล่นย่อยล่าสุด
 async function checkSubRoundData(event) {
   try {
@@ -620,8 +633,6 @@ async function setOpenOdds(event, oddsToSend, maxAmount) {
       return false;
     }
   } catch (error) {
-    //console.error("เกิดข้อผิดพลาดใน setOpenOdds:", error.message);
-
     if (error.response) {
       console.error(
         `ข้อผิดพลาดจาก API: ${
@@ -682,7 +693,6 @@ async function setCloseOdds(event) {
   }
 }
 
-
 // ฟังก์ชันปิดราคาเล่น
 async function setPlayBet(event, betData) {
   try {
@@ -706,10 +716,8 @@ async function setPlayBet(event, betData) {
   }
 }
 
-
 async function checkUserPlay(event) {
   try {
-
     if (!process.env.API_URL) {
       throw new Error("API_URL is not defined in .env");
     }
@@ -732,10 +740,8 @@ async function checkUserPlay(event) {
   }
 }
 
-
 async function checkUserPlayBalance(event) {
   try {
-
     if (!process.env.API_URL) {
       throw new Error("API_URL is not defined in .env");
     }
@@ -758,6 +764,130 @@ async function checkUserPlayBalance(event) {
   }
 }
 
+// ฟังก์ชันดึงข้อมูลสรุปรายการเล่น
+async function fetchPlaySummary(event) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+    const idMainRound = await checkMainRoundNow(event);
+
+    const response = await axios.get(
+      `${process.env.API_URL}/transaction-play/round/${idMainRound}`
+    );
+
+    if (response && response.data) {
+      return response.data; // ข้อมูลสรุป
+    } else {
+      throw new Error("ไม่พบข้อมูลสรุปสำหรับรอบนี้");
+    }
+  } catch (error) {
+    console.error("Error fetching play summary:", error);
+    throw new Error("ไม่สามารถดึงข้อมูลสรุปได้");
+  }
+}
+
+
+// ฟังก์ชันหลักสำหรับสร้าง Flex Message
+async function generateFlexSummaryMessage(summary) {
+  // จัดกลุ่มข้อมูลตามผู้ใช้
+  const groupedData = summary.reduce((acc, item) => {
+    if (!acc[item.user]) {
+      acc[item.user] = [];
+    }
+    acc[item.user].push(item);
+    return acc;
+  }, {});
+
+  const groupedEntries = Object.entries(groupedData);
+  
+  // ดึงชื่อผู้ใช้ทั้งหมดพร้อมกัน
+  const userNames = await Promise.all(
+    groupedEntries.map(async ([userID]) => getUserNameFromUserID(userID))
+  );
+
+  return {
+    type: "flex",
+    altText: "สรุปรายการเล่นก่อนปิดรอบ",
+    contents: {
+      type: "bubble",
+      header: {
+        type: "box",
+        layout: "vertical",
+        contents: [
+          {
+            type: "text",
+            text: "สรุปรายการก่อนปิดรอบ",
+            weight: "bold",
+            size: "lg",
+            color: "#1DB446",
+            align: "center",
+            margin: "none",
+          },
+        ],
+      },
+      body: {
+        type: "box",
+        layout: "vertical",
+        contents: groupedEntries.map(([userID, bets], userIndex) => {
+          const isLastUser = userIndex === groupedEntries.length - 1;
+          
+          const userContent = {
+            type: "box",
+            layout: "vertical",
+            margin: "sm",
+            contents: [
+              {
+                type: "text",
+                text: `${userIndex + 1}) ${userNames[userIndex]}`,
+                size: "sm",
+                weight: "bold",
+                color: "#111111",
+              },
+              ...bets.slice(0, 4).map((bet, betIndex) => ({
+                type: "text",
+                text: `ยก #${bet.round.numberMainRound} | ${bet.betType === "RED" ? "ด" : "ง"} = ${bet.betAmount.toLocaleString()} | ${bet.subRound.price}`,
+                size: "sm",
+                weight: "bold",
+                color: (() => {
+                  const price = bet.subRound.price;
+                  if (price.startsWith("ตร")) {
+                    return "#1DB446"; // สีเขียน
+                  } else if (price.startsWith("สด")) {
+                    return "#d7686a"; // สีแดง
+                  } else if (price.startsWith("สง")) {
+                    return "#6ea7dc"; // สีน้ำเงิน
+                  } else if (price.startsWith("ด")) {
+                    return "#d7686a"; // สีแดง
+                  } else if (price.startsWith("ง")) {
+                    return "#6ea7dc"; // สีน้ำเงิน
+                  }
+                  return "#1DB446"; // สีเริ่มต้น
+                })(),
+                margin: betIndex === 0 ? "none" : "xs",
+                align: "end",
+              })),
+            ],
+          };
+
+          if (!isLastUser) {
+            return [
+              userContent,
+              {
+                type: "separator",
+                margin: "md",
+                color: "#000000"
+              }
+            ];
+          }
+
+          return [userContent];
+        }).flat(),
+      },
+    },
+  };
+}
+
 
 module.exports = {
   setPlayInday,
@@ -777,4 +907,6 @@ module.exports = {
   setPlayBet,
   checkUserPlay,
   checkUserPlayBalance,
+  fetchPlaySummary,
+  generateFlexSummaryMessage,
 };
