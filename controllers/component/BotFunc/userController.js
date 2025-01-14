@@ -369,6 +369,24 @@ async function checkUserData(userId) {
   }
 }
 
+
+//ฟังก์ชันเช็คข้อมูลผู้ใช้ by id
+async function checkUserDataByID(id) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const response = await axios.get(`${process.env.API_URL}/user/id/${id}`);
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error checking openPlayInday:",
+      error.response?.data || error.message
+    );
+  }
+}
+
 module.exports = {
   getSortedUserDetails,
   AddMember,
@@ -378,4 +396,5 @@ module.exports = {
   getUserMoney,
   updateAdminData,
   checkUserData,
+  checkUserDataByID,
 };

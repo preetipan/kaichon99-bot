@@ -246,9 +246,25 @@ async function withdrawMoney(id, amount, event) {
   }
 }
 
+
+async function transationMoney(payload) {
+  try {
+    const response = await axios.post(`${process.env.API_URL}/transation-money`, payload);
+    if (response.status === 201) {
+      console.log('Transaction successful', response.data);
+    } else {
+      console.log('Transaction failed', response.data);
+    }
+  } catch (error) {
+    console.error('Error during transaction:', error.message);
+    throw error;
+  }
+}
+
 module.exports = {
   getBankAccountDetails,
   depositMoneyCredit,
   depositMoneyCash,
   withdrawMoney,
+  transationMoney,
 };

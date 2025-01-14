@@ -30,6 +30,7 @@ const {
   handleSetOdds,
   handleCloseSetOdds,
   handleUserBet,
+  handleConfirmResultCommand,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
@@ -395,16 +396,33 @@ async function handleTextMessage(event) {
         return await handleCloseMainPlayCommand(event);
       }
 
+      let selectedResult = null;
+
       // สรุปผล
       if (userMessage.toLowerCase().startsWith("s")) {
         const result = userMessage.toLowerCase().slice(1);
+        selectedResult = result;
 
-        console.log("result : " + result);
+        // ตรวจสอบเฉพาะตัวอักษรที่อนุญาต
+        if (["ด", "ง", "ส"].includes(result)) {
+          return await handleConfirmResultCommand(event, result);
+        } else {
+          console.log("คำสั่งไม่ถูกต้อง");
+        }
       }
 
       // ยืนยันผล
       if (userMessage.toLowerCase() === "Y") {
-        return "";
+        if (selectedResult) {
+          return await updateResultConfirmation(event);
+          selectedResult = null;
+        } else {
+          const replyMessage = {
+            type: "text",
+            text: "กรุณาเลือกผลลัพธ์ก่อนทำการยืนยัน (เช่น 'sด', 'sง', หรือ 'ส')",
+          };
+          return await client.replyMessage(event.replyToken, replyMessage);
+        }
       }
 
       // ย้อนผล

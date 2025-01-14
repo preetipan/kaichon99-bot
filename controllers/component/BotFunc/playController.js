@@ -66,9 +66,8 @@ async function setPlayInday(event, openPlay) {
 
     // การจัดการข้อผิดพลาดที่เกิดขึ้น
     if (error.response) {
-      return `ข้อผิดพลาดจาก API: ${
-        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
-      }`;
+      return `ข้อผิดพลาดจาก API: ${error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+        }`;
     }
 
     return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
@@ -100,9 +99,8 @@ async function checkOpenPlayInday(event) {
     );
 
     if (error.response) {
-      return `ข้อผิดพลาดจาก API: ${
-        error.response.data.message || "ไม่สามารถตรวจสอบสถานะได้"
-      }`;
+      return `ข้อผิดพลาดจาก API: ${error.response.data.message || "ไม่สามารถตรวจสอบสถานะได้"
+        }`;
     }
 
     return "เกิดข้อผิดพลาดในการตรวจสอบสถานะ กรุณาลองใหม่";
@@ -139,9 +137,8 @@ async function resetMainRound(event) {
       error.response?.data || error.message
     );
     if (error.response) {
-      return `ข้อผิดพลาดจาก API: ${
-        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
-      }`;
+      return `ข้อผิดพลาดจาก API: ${error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+        }`;
     }
 
     return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
@@ -178,9 +175,8 @@ async function resetSubRound(event) {
       error.response?.data || error.message
     );
     if (error.response) {
-      return `ข้อผิดพลาดจาก API: ${
-        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
-      }`;
+      return `ข้อผิดพลาดจาก API: ${error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+        }`;
     }
 
     return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
@@ -217,9 +213,8 @@ async function setNumberMainRound(event) {
       error.response?.data || error.message
     );
     if (error.response) {
-      return `ข้อผิดพลาดจาก API: ${
-        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
-      }`;
+      return `ข้อผิดพลาดจาก API: ${error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+        }`;
     }
 
     return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
@@ -256,9 +251,8 @@ async function setNumberSubRound(event) {
       error.response?.data || error.message
     );
     if (error.response) {
-      return `ข้อผิดพลาดจาก API: ${
-        error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
-      }`;
+      return `ข้อผิดพลาดจาก API: ${error.response.data.message || "ไม่สามารถอัปเดตกลุ่มได้"
+        }`;
     }
 
     return "เกิดข้อผิดพลาดในการอัปเดตกลุ่ม กรุณาลองใหม่";
@@ -635,8 +629,7 @@ async function setOpenOdds(event, oddsToSend, maxAmount) {
   } catch (error) {
     if (error.response) {
       console.error(
-        `ข้อผิดพลาดจาก API: ${
-          error.response.data?.message || "ไม่สามารถอัปเดตกลุ่มได้"
+        `ข้อผิดพลาดจาก API: ${error.response.data?.message || "ไม่สามารถอัปเดตกลุ่มได้"
         }`
       );
     }
@@ -790,6 +783,46 @@ async function fetchPlaySummary(event) {
 
 // ฟังก์ชันหลักสำหรับสร้าง Flex Message
 async function generateFlexSummaryMessage(summary) {
+  // ถ้าไม่มีข้อมูลให้แสดงข้อความว่า "ไม่มีรายการเล่น"
+  if (summary.length === 0) {
+    return {
+      type: "flex",
+      altText: "ไม่มีรายการเล่น",
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "สรุปรายการก่อนปิดรอบ",
+              weight: "bold",
+              size: "lg",
+              color: "#1DB446",
+              align: "center",
+              margin: "none",
+            },
+          ],
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "ไม่มีรายการเล่น",
+              size: "md",
+              weight: "bold",
+              color: "#111111",
+              align: "center",
+            },
+          ],
+        },
+      },
+    };
+  }
+
   // จัดกลุ่มข้อมูลตามผู้ใช้
   const groupedData = summary.reduce((acc, item) => {
     if (!acc[item.user]) {
@@ -800,7 +833,7 @@ async function generateFlexSummaryMessage(summary) {
   }, {});
 
   const groupedEntries = Object.entries(groupedData);
-  
+
   // ดึงชื่อผู้ใช้ทั้งหมดพร้อมกัน
   const userNames = await Promise.all(
     groupedEntries.map(async ([userID]) => getUserNameFromUserID(userID))
@@ -831,7 +864,7 @@ async function generateFlexSummaryMessage(summary) {
         layout: "vertical",
         contents: groupedEntries.map(([userID, bets], userIndex) => {
           const isLastUser = userIndex === groupedEntries.length - 1;
-          
+
           const userContent = {
             type: "box",
             layout: "vertical",
@@ -840,30 +873,16 @@ async function generateFlexSummaryMessage(summary) {
               {
                 type: "text",
                 text: `${userIndex + 1}) ${userNames[userIndex]}`,
-                size: "sm",
+                size: "md",
                 weight: "bold",
                 color: "#111111",
               },
               ...bets.slice(0, 4).map((bet, betIndex) => ({
                 type: "text",
                 text: `ยก #${bet.round.numberMainRound} | ${bet.betType === "RED" ? "ด" : "ง"} = ${bet.betAmount.toLocaleString()} | ${bet.subRound.price}`,
-                size: "sm",
+                size: "md",
                 weight: "bold",
-                color: (() => {
-                  const price = bet.subRound.price;
-                  if (price.startsWith("ตร")) {
-                    return "#1DB446"; // สีเขียน
-                  } else if (price.startsWith("สด")) {
-                    return "#d7686a"; // สีแดง
-                  } else if (price.startsWith("สง")) {
-                    return "#6ea7dc"; // สีน้ำเงิน
-                  } else if (price.startsWith("ด")) {
-                    return "#d7686a"; // สีแดง
-                  } else if (price.startsWith("ง")) {
-                    return "#6ea7dc"; // สีน้ำเงิน
-                  }
-                  return "#1DB446"; // สีเริ่มต้น
-                })(),
+                color: bet.betType === "RED" ? "#d7686a" : "#6ea7dc",
                 margin: betIndex === 0 ? "none" : "xs",
                 align: "end",
               })),
@@ -887,6 +906,7 @@ async function generateFlexSummaryMessage(summary) {
     },
   };
 }
+
 
 
 module.exports = {

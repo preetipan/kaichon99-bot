@@ -7,12 +7,14 @@ const {
   getUserMoney,
   updateAdminData,
   checkUserData,
+  checkUserDataByID,
 } = require("../BotFunc/userController");
 const {
   getBankAccountDetails,
   depositMoneyCredit,
   depositMoneyCash,
   withdrawMoney,
+  transationMoney,
 } = require("../BotFunc/bankAccountController");
 const {
   setGroup,
@@ -253,7 +255,22 @@ async function handleTopUpCredit(event, userMessage) {
 
     // ดำเนินการเติมเงิน
     const response = await depositMoneyCredit(userCode, amount, event);
+    const userData = await checkUserDataByID(userCode);
+
+    const payload = {
+      user: userCode,
+      type: "DEPOSIT",
+      typeCredit: "CREDIT",
+      status: "SUCCESS",
+      amount: amount,
+      createBy: event.source.userId,
+      groupId: userData.groupId,
+    };
+
     if (response && response.type === "text") {
+      const transaction_money = await transationMoney(payload);
+      console.log(transaction_money)
+
       return client.replyMessage(event.replyToken, response);
     } else {
       throw new Error(response.message || "ไม่สามารถเติมเงินได้");
@@ -295,10 +312,26 @@ async function handleCashCustomer(event, userMessage) {
       return sendErrorMessage(event, "จำนวนเงินต้องมากกว่า 0 บาท");
     }
 
-    // ดำเนินการบันทึกข้อมูลลูกค้าเงินสด
-    const response = await depositMoneyCash(userCode, amount, event); // ฟังก์ชันฝากเงินสด
+    const response = await depositMoneyCash(userCode, amount, event);
+    const userData = await checkUserDataByID(userCode);
+
+    const payload = {
+      user: userCode,
+      type: "DEPOSIT",
+      typeCredit: "CASH",
+      status: "SUCCESS",
+      amount: amount,
+      createBy: event.source.userId,
+      groupId: userData.groupId,
+    };
+
+
     if (response && response.type === "text") {
-      return client.replyMessage(event.replyToken, response); // ส่งข้อความที่ได้จาก depositMoneyCash
+
+      const transaction_money = await transationMoney(payload);
+      console.log(transaction_money)
+
+      return client.replyMessage(event.replyToken, response);
     } else {
       throw new Error(response.message || "ไม่สามารถเติมเงินได้");
     }
@@ -323,7 +356,7 @@ async function handleWithdrawMoney(event, userMessage) {
     }
 
     // ตรวจสอบและดึงข้อมูลจากข้อความ
-    const match = userMessage.match(/^(\d+)=\-([\d]+)$/); // รูปแบบคำสั่ง: รหัสผู้ใช้=-1000
+    const match = userMessage.match(/^(\d+)=\-([\d]+)$/);
     if (!match) {
       return sendErrorMessage(
         event,
@@ -339,9 +372,25 @@ async function handleWithdrawMoney(event, userMessage) {
       return sendErrorMessage(event, "จำนวนเงินต้องมากกว่า 0 บาท");
     }
 
-    // ดำเนินการถอนเงิน
-    const response = await withdrawMoney(userCode, amount, event); // ฟังก์ชันถอนเงิน
+    const response = await withdrawMoney(userCode, amount, event);
+    const userData = await checkUserDataByID(userCode);
+
+    const payload = {
+      user: userCode,
+      type: "WITHDRAW",
+      typeCredit: "CASH",
+      status: "SUCCESS",
+      amount: amount,
+      createBy: event.source.userId,
+      groupId: userData.groupId,
+    };
+
+
     if (response && response.type === "text") {
+
+      const transaction_money = await transationMoney(payload);
+      console.log(transaction_money)
+
       return client.replyMessage(event.replyToken, response); // ส่งข้อความที่ได้จาก withdrawMoney
     } else {
       throw new Error(response.message || "ไม่สามารถถอนเงินได้");
@@ -673,16 +722,24 @@ async function handleCloseMainPlayCommand(event) {
     const summary = await fetchPlaySummary(event);
     const flexMessage = await generateFlexSummaryMessage(summary);
 
-    // สร้างและส่งข้อความตอบกลับ
-    const messages = [
-      {
-        type: "text",
-        text: closeMainMessage || "ปิดรอบเรียบร้อย",
-      },
-      flexMessage,
-    ].filter(Boolean); // กรองข้อความที่เป็น null/undefined ออก
+    if (closeMainMessage && flexMessage) {
+      const messages = [
+        {
+          type: "text",
+          text: closeMainMessage,
+        },
+        flexMessage,
+      ];
 
-    return client.replyMessage(event.replyToken, messages);
+      // ส่งข้อความตอบกลับ
+      await client.replyMessage(event.replyToken, messages);
+    } else {
+      // ถ้าไม่มีข้อความใด ๆ
+      return client.replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่สามารถสร้างข้อความสรุปได้ กรุณาลองใหม่อีกครั้ง",
+      });
+    }
   } catch (error) {
     console.error("Error in handleCloseMainPlayCommand:", error);
     return client.replyMessage(event.replyToken, {
@@ -1019,9 +1076,8 @@ async function handleUserBet(event, { type, amount }) {
                       },
                       {
                         type: "text",
-                        text: `ยก ${
-                          subround_data?.numberRound || "-"
-                        } ✅ ${type}=${amount.toLocaleString()} #ตง10/9`,
+                        text: `ยก ${subround_data?.numberRound || "-"
+                          } ✅ ${type}=${amount.toLocaleString()} #ตง10/9`,
                         size: "xs",
                         color: "#000000",
                       },
@@ -1059,6 +1115,78 @@ async function handleUserBet(event, { type, amount }) {
   }
 }
 
+async function handleConfirmResultCommand(event, result) {
+  try {
+    // ตรวจสอบสิทธิ์ผู้ใช้งาน
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
+
+    if (!permissionResult.success) {
+      console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
+      const replyMessage = {
+        type: "text",
+        text: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้!!!",
+      };
+      return await client.replyMessage(event.replyToken, replyMessage);
+    }
+
+    // ตรวจสอบสถานะรอบเล่นหลัก
+    const isOpenMainStatus = await checkPreviousRoundStatus();
+    if (isOpenMainStatus) {
+      const replyMessage = {
+        type: "text",
+        text: "ยังไม่ปิดรอบเล่น!!!",
+      };
+      return await client.replyMessage(event.replyToken, replyMessage);
+    }
+
+    // กำหนดผลลัพธ์และไฟล์ภาพ
+    let resultText;
+    let resultS;
+    switch (result) {
+      case "ด":
+        resultText = "red_win.jpg";
+        resultS = "แดงชนะ";
+        break;
+      case "ง":
+        resultText = "blue_win.jpg";
+        resultS = "น้ำเงินชนะ";
+        break;
+      case "ส":
+        resultText = "draw.jpg";
+        resultS = "เสมอ";
+        break;
+      default:
+        throw new Error("Invalid result value");
+    }
+
+    // ประกอบ URL ของภาพ
+    const img = `${process.env.IMGE_URL}/Img/${resultText}`;
+
+    // ส่งข้อความสรุปผล
+    const replyMessageText = {
+      type: "text",
+      text: `สรุป ${resultS} \nยืนยันผลสรุป Y`,
+    };
+
+    // ส่งภาพผลลัพธ์
+    const replyMessageImage = {
+      type: "image",
+      originalContentUrl: img,
+      previewImageUrl: img,
+    };
+
+    // ส่งทั้งข้อความและภาพ
+    await client.replyMessage(event.replyToken, [replyMessageText, replyMessageImage]);
+  } catch (error) {
+    console.error("Error in handleConfirmResultCommand:", error);
+    return sendErrorMessage(event, "เกิดข้อผิดพลาดในการปิดรอบ กรุณาลองใหม่");
+  }
+}
+
+
 // ฟังก์ชันสำหรับคำนวณราคาฝั่งต่อและรอง
 function calculateOddsText(type, oddsValue) {
   const oddsMap = {
@@ -1084,9 +1212,8 @@ function calculateOddsText(type, oddsValue) {
   if (!odds) return "\n• ไม่สามารถคำนวณอัตราได้ เนื่องจากข้อมูลไม่ถูกต้อง";
 
   const side = type === "ด" ? "แดง" : "น้ำเงิน";
-  return `\n• ฝั่งต่อ (${side}): ต่อ 10 ได้ ${odds.ต่อ}\n• ฝั่งรอง (${
-    side === "แดง" ? "น้ำเงิน" : "แดง"
-  }): รอง ${odds.รอง} ได้ 10`;
+  return `\n• ฝั่งต่อ (${side}): ต่อ 10 ได้ ${odds.ต่อ}\n• ฝั่งรอง (${side === "แดง" ? "น้ำเงิน" : "แดง"
+    }): รอง ${odds.รอง} ได้ 10`;
 }
 
 function sendErrorMessage(event, message) {
@@ -1118,4 +1245,5 @@ module.exports = {
   handleSetOdds,
   handleCloseSetOdds,
   handleUserBet,
+  handleConfirmResultCommand,
 };
