@@ -1,21 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
-const { checkUserPlay ,checkPreviousRoundStatus, checkPreviousSubRoundStatus} = require("../BotFunc/playController");
-
-const users = require("../../../models/user");
-
-function getSortedUserDetails() {
-  // Sort users by displayName (name)
-  const sortedUsers = users.sort((a, b) =>
-    a.displayName.localeCompare(b.displayName)
-  );
-
-  // Create a message with sorted user details (name and phone number)
-  return sortedUsers.map((user) => ({
-    type: "text",
-    text: `ชื่อ: ${user.displayName}\nเบอร์: ${user.phoneNumber}`,
-  }));
-}
+const { checkUserPlay ,checkPreviousRoundStatus} = require("../BotFunc/playController");
 
 // ดึงสิทธิ์ user
 async function getUserRole(userId) {
@@ -388,7 +373,6 @@ async function checkUserDataByID(id) {
 }
 
 module.exports = {
-  getSortedUserDetails,
   AddMember,
   checkIfUserExists,
   updateMemberData,

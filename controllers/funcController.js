@@ -11,8 +11,6 @@ const {
 } = require("./component/BotFunc/groupController");
 const {
   handleUserCheckMoney,
-  handleUserDetails,
-  handleTestDetails,
   handleSetCockCommand,
   handleBankAccountDetails,
   handleSetHiloCommand,
@@ -31,9 +29,14 @@ const {
   handleCloseSetOdds,
   handleUserBet,
   handleConfirmResultCommand,
+  handleResultConfirmation,
+  handleReturnConfirmResultCommand,
+  handleReturnResultConfirmation,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
+
+const pendingCommands = new Map();
 
 async function handleEvent(event) {
   if (event.source.type === "group" || event.source.type === "room") {
@@ -205,22 +208,22 @@ async function handleTextMessage(event) {
       return handleAddAllMembers(event);
     }
 
-    // เปิดใช้งานระบบไฮโล
+    // เปิดใช้งานระบบไฮโล ยังใช้ไม่ได้
     if (userMessage.toLowerCase().startsWith("set#เปิด#ไฮโล")) {
       return handleSetHiloCommand(event, "เปิด");
     }
 
-    // ปิดใช้งานระบบไฮโล
+    // ปิดใช้งานระบบไฮโล ยังใช้ไม่ได้
     if (userMessage.toLowerCase().startsWith("set#ปิด#ไฮโล")) {
       return handleSetHiloCommand(event, "ปิด");
     }
 
-    // เปิดใช้งานระบบไก่ชน
+    // เปิดใช้งานระบบไก่ชน ยังใช้ไม่ได้
     if (userMessage.toLowerCase().startsWith("set#เปิด#ไก่ชน")) {
       return handleSetCockCommand(event, "เปิด");
     }
 
-    // ปิดใช้งานระบบไก่ชน
+    // ปิดใช้งานระบบไก่ชน ยังใช้ไม่ได้
     if (userMessage.toLowerCase().startsWith("set#ปิด#ไก่ชน")) {
       return handleSetCockCommand(event, "ปิด");
     }
@@ -228,16 +231,6 @@ async function handleTextMessage(event) {
     // แจ้งเลขบัญชี
     if (userMessage === "บช") {
       return handleBankAccountDetails(event);
-    }
-
-    // เทส
-    if (userMessage === "เทส") {
-      return handleTestDetails(event);
-    }
-
-    // เทส2
-    if (userMessage.toLowerCase() === "cdd") {
-      return handleUserDetails(event);
     }
 
     // เพิ่มเงิน แบบเครดิต
@@ -285,6 +278,7 @@ async function handleTextMessage(event) {
 
       // เปิดรอบเล่นหลัก
       if (userMessage.toLowerCase() === "o") {
+        pendingCommands.delete("2");
         return await handleOpenMainPlayCommand(event);
       }
 
@@ -324,7 +318,14 @@ async function handleTextMessage(event) {
           const odds = parts[0].substring(1); // อัตราต่อรองหลังตัวอักษรนำหน้า
           const maxAmount = parts[1];
 
-          if (!isFinite(odds) || parseFloat(odds) <= 0) {
+          // กำหนดค่าที่อนุญาต
+          const allowedOdds = [
+            "8.5", "8", "7.5", "7", "6.5", "6", "5.5", "5", "4.5", "4",
+            "3.5", "3", "2.5", "2", "1.5", "1", "10", "100"
+          ];
+
+          // ตรวจสอบว่าอัตราต่อรองเป็นตัวเลขหรืออักษรที่ถูกต้อง
+          if (!allowedOdds.includes(odds)) {
             const replyMessage = {
               type: "text",
               text: "กรุณาระบุอัตราต่อรองให้ถูกต้อง เช่น ด8/50000 หรือ ง8/50000",
@@ -341,6 +342,7 @@ async function handleTextMessage(event) {
           return await client.replyMessage(event.replyToken, replyMessage);
         }
       }
+
 
       // คำสั่งเปิดราคา "สด" หรือ "สง"
       if (
@@ -396,39 +398,70 @@ async function handleTextMessage(event) {
         return await handleCloseMainPlayCommand(event);
       }
 
-      let selectedResult = null;
-
       // สรุปผล
       if (userMessage.toLowerCase().startsWith("s")) {
-        const result = userMessage.toLowerCase().slice(1);
-        selectedResult = result;
+        const result = userMessage.slice(1); // Extracts "ด", "ง", "ส"
 
         // ตรวจสอบเฉพาะตัวอักษรที่อนุญาต
         if (["ด", "ง", "ส"].includes(result)) {
+          pendingCommands.set("1", result); // เก็บคำสั่ง "sด", "sง", "ส"
           return await handleConfirmResultCommand(event, result);
         } else {
           console.log("คำสั่งไม่ถูกต้อง");
+          return;
         }
       }
 
-      // ยืนยันผล
-      if (userMessage.toLowerCase() === "Y") {
-        if (selectedResult) {
-          return await updateResultConfirmation(event);
-          selectedResult = null;
-        } else {
-          const replyMessage = {
-            type: "text",
-            text: "กรุณาเลือกผลลัพธ์ก่อนทำการยืนยัน (เช่น 'sด', 'sง', หรือ 'ส')",
-          };
-          return await client.replyMessage(event.replyToken, replyMessage);
+      // ยืนยันคำสั่ง
+      if (userMessage.toLowerCase() === "y") {
+        // กรณีที่เป็นการยืนยันการอัพเดตยอด
+        if (pendingCommands.has("1")) {
+          const selectedResult = pendingCommands.get("1");
+          const returnd_status = pendingCommands.get("2");
+          let status
+          if (!returnd_status) {
+            status = "New"
+          } else {
+            status = "Old"
+          }
+
+          await handleResultConfirmation(event, selectedResult, status);
+          pendingCommands.delete("1");
+          return;
+        }
+        // กรณีที่เป็นการยืนยันย้อนผล
+        else if (pendingCommands.has("2")) {
+          const roundNumber = pendingCommands.get("2");
+          return await handleReturnResultConfirmation(event, roundNumber);
+        }
+        // กรณีที่ไม่พบคำสั่งที่รอการยืนยัน
+        else {
+          console.log("ไม่มีกำหนดคำสั่งที่รอการยืนยัน");
+          return;
         }
       }
 
       // ย้อนผล
-      if (userMessage.toLowerCase().startsWith("return#")) {
-        return "";
+      if (userMessage.toLowerCase().startsWith("ย้อนผล#")) {
+        const messageParts = userMessage.split('#');
+
+        if (messageParts.length === 2) {
+          const roundNumber = parseInt(messageParts[1]);
+          if (!isNaN(roundNumber)) {
+            pendingCommands.set("2", roundNumber);
+            return await handleReturnConfirmResultCommand(event, roundNumber);
+          } else {
+            console.log("คำสั่งไม่ถูกต้อง");
+            return;
+          }
+        } else {
+          console.log("คำสั่งไม่ถูกต้อง");
+          return;
+        }
       }
+
+
+
     }
   }
   return null;

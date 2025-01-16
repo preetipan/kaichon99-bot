@@ -316,6 +316,50 @@ async function setMainPlay(event, status) {
   }
 }
 
+
+// ฟังก์ชันอัพเดตผลการแข่งขัน
+async function setResultMainPlay(event, result) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const resultS = result === "ด"
+      ? "WIN_RED"
+      : result === "ง"
+        ? "WIN_BLUE"
+        : result === "ส"
+          ? "DRAW"
+          : null;
+
+    if (!resultS) {
+      throw new Error("Invalid result value. It must be 'ด', 'ง', or 'ส'.");
+    }
+
+    const Round_id = await checkMainRoundNow(event);
+
+    if (!Round_id) {
+      throw new Error("Failed to fetch Round ID. Please check the event data.");
+    }
+
+    const payload = {
+      result: resultS
+    };
+
+    const response = await axios.patch(`${process.env.API_URL}/round/${Round_id}`, payload);
+
+    const confirmationMessage = `ผลการแข่งขันถูกบันทึกสำเร็จ: ${resultS}`;
+
+    return confirmationMessage;
+  } catch (error) {
+    console.error(
+      "Error updating round:",
+      error.response?.data || error.message
+    );
+  }
+}
+
+
 // ฟังก์ชันปิดรอบเล่นหลัก
 async function updateMainPlay(event, status) {
   try {
@@ -358,9 +402,20 @@ async function updateMainPlay(event, status) {
       payload
     );
 
+    const summary = await fetchPlaySummary(event);
+    const flexMessage = await generateFlexSummaryMessage(summary);
+
+    const messages = [
+      {
+        type: "text",
+        text: "ปิดรอบ",
+      },
+      flexMessage,
+    ];
+
     // เพิ่มการตรวจสอบข้อมูลที่ได้จาก API
     if (response && response.data) {
-      return "ปิดรอบ";
+      return messages;
     } else {
       throw new Error("ไม่สามารถปิดรอบได้ หรือไม่พบข้อมูล");
     }
@@ -709,6 +764,7 @@ async function setPlayBet(event, betData) {
   }
 }
 
+// ฟังก์ชั่นเช็คข้อมูลการเล่นของ User
 async function checkUserPlay(event) {
   try {
     if (!process.env.API_URL) {
@@ -733,6 +789,7 @@ async function checkUserPlay(event) {
   }
 }
 
+// ฟังก์ชั่นเช็คยอดที่สามารถเล่นได้ คงเหลือของUser
 async function checkUserPlayBalance(event) {
   try {
     if (!process.env.API_URL) {
@@ -907,6 +964,222 @@ async function generateFlexSummaryMessage(summary) {
   };
 }
 
+// ฟังก์ชันสรุปเงินคงเหลือล่าสุดก่อนสรุปผล
+async function updateRemainingFund(summary, resultStatus) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const usersToUpdate = summary.map((item) => item.user);
+    const uniqueUsersToUpdate = [...new Set(usersToUpdate)];
+
+    // ใช้ Promise.all เพื่ออัพเดตหลายๆ ผู้ใช้พร้อมกัน
+    const updateResults = await Promise.all(uniqueUsersToUpdate.map(async (userId) => {
+      try {
+        const userSummary = summary.find((item) => item.user === userId);
+        const sum_result = calculateUserSummary(summary, userId);
+
+        // ดึงข้อมูลผู้ใช้งาน
+        const userData = await axios.get(`${process.env.API_URL}/user/${userId}`);
+
+        // กำหนด remainingFund จาก userData หรือค่าที่คำนวณมา
+        const remainingFund = userData.data.remainingFund || 0;
+
+        return {
+          userData: userData.data,
+          ...userSummary,
+          remainingFund: remainingFund,
+          sum_results: sum_result.total,
+        };
+      } catch (error) {
+        console.error(`Error updating fund for user ${userId}:`, error);
+        return null;
+      }
+    }));
+
+    // กรองข้อมูลที่มีค่า null
+    const validResults = updateResults.filter(result => result !== null);
+
+    // สร้าง Flex message contents
+    const flexContents = await Promise.all(validResults.map(async (result) => {
+      try {
+        let cal = result.userData.fund || 0;
+        if (resultStatus === "Old") {
+          cal = Math.floor(parseFloat(result.remainingFund) + parseFloat(result.sum_results));
+        } else {
+          cal = Math.floor(parseFloat(result.userData.fund) + parseFloat(result.sum_results));
+        }
+
+        const userName = await getUserNameFromUserID(result.userData.userID);
+
+        // อัปเดตข้อมูล fund ของผู้ใช้
+        await axios.patch(`${process.env.API_URL}/user/${result.userData.userID}`, { fund: cal });
+
+        return {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "text",
+              text: `${result.userData.id}) ${userName}`,
+              size: "sm",
+              color: "#000000",
+              flex: 2,
+              wrap: true,
+            },
+            {
+              type: "text",
+              text: "|",
+              size: "sm",
+              color: "#AAAAAA",
+              flex: 0,
+              align: "center",
+            },
+            {
+              type: "text",
+              text: `${result.sum_results} = ${cal}`,
+              size: "sm",
+              color: "#000000",
+              flex: 2,
+              align: "end",
+            },
+          ],
+        };
+      } catch (error) {
+        console.error(`Error processing user ${result.userData.userID}:`, error);
+        return null;
+      }
+    }));
+
+    // กรองข้อมูล Flex Contents ที่มีค่า null
+    const validFlexContents = flexContents.filter(content => content !== null);
+
+    // คืนค่า Flex Message
+    return {
+      type: "flex",
+      altText: `สรุปรอบย่อย #${validResults[0]?.group?.main_round_number || "N/A"}`,
+      contents: {
+        type: "bubble",
+        body: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: `สรุปรอบย่อย #${validResults[0]?.group?.main_round_number || "N/A"}`,
+              weight: "bold",
+              size: "md",
+              color: "#22c35e",
+              margin: "sm",
+              align: "center",
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              spacing: "md",
+              margin: "lg",
+              contents: validFlexContents,
+            },
+          ],
+          paddingAll: "lg",
+        },
+        styles: {
+          body: {
+            backgroundColor: "#FFFFFF",
+          },
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error updating remaining fund:", error);
+    throw new Error("ไม่สามารถอัปเดตข้อมูลได้");
+  }
+}
+
+
+
+
+function calculateUserSummary(summary, userID) {
+  const PRICE_RULES = {
+    RED: {
+      "ตร": 0.9, "สด": 0.8, "ด8.5": 0.75, "ด8": 0.7, "ด7.5": 0.65, "ด7": 0.6,
+      "ด6.5": 0.55, "ด6": 0.5, "ด5.5": 0.45, "ด5": 0.4, "ด4.5": 0.35, "ด4": 0.3,
+      "ด3.5": 0.25, "ด3": 0.2, "ด2.5": 0.15, "ด2": 0.1, "ด1": 0.067, "ด100": 0.01,
+      "สง": 1, "ง8.5": 1.05, "ง8": 1.11, "ง7.5": 1.17, "ง7": 1.25, "ง6.5": 1.33,
+      "ง6": 1.42, "ง5.5": 1.53, "ง5": 1.66, "ง4.5": 1.81, "ง4": 2, "ง3.5": 2.22,
+      "ง3": 2.5, "ง2.5": 2.85, "ง2": 3.33, "ง1": 10, "ง100": 20,
+    },
+    BLUE: {
+      "ตร": 0.9, "สง": 0.8, "ง8.5": 0.75, "ง8": 0.7, "ง7.5": 0.65, "ง7": 0.6,
+      "ง6.5": 0.55, "ง6": 0.5, "ง5.5": 0.45, "ง5": 0.4, "ง4.5": 0.35, "ง4": 0.3,
+      "ง3.5": 0.25, "ง3": 0.2, "ง2.5": 0.15, "ง2": 0.1, "ง1": 0.067, "ง100": 0.01,
+      "สด": 1, "ด8.5": 1.05, "ด8": 1.11, "ด7.5": 1.17, "ด7": 1.25, "ด6.5": 1.33,
+      "ด6": 1.42, "ด5.5": 1.53, "ด5": 1.66, "ด4.5": 1.81, "ด4": 2, "ด3.5": 2.22,
+      "ด3": 2.5, "ด2.5": 2.85, "ด2": 3.33, "ด1": 10, "ด100": 20,
+    },
+  };
+
+  const userSummary = summary.filter((item) => item.user === userID);
+
+  const results = [];
+
+  userSummary.forEach((item) => {
+    const { betType, betAmount, round, subRound } = item;
+
+    const priceRule = PRICE_RULES[betType][subRound.price];
+
+    let resultSummary = {};
+
+    if (
+      (round.result === "WIN_BLUE" && betType === "BLUE") ||
+      (round.result === "WIN_RED" && betType === "RED")
+    ) {
+      const profit = betAmount * priceRule;
+      resultSummary = {
+        user: item.user,
+        betType,
+        betAmount,
+        profit,
+        status: "WIN",
+        subRound: subRound.numberRound,
+        mainRound: round.numberMainRound,
+      };
+    } else {
+      resultSummary = {
+        user: item.user,
+        betType,
+        betAmount,
+        loss: betAmount,
+        status: "LOSE",
+        subRound: subRound.numberRound,
+        mainRound: round.numberMainRound,
+      };
+    }
+
+    results.push(resultSummary);
+  });
+
+  // คำนวณผลรวม
+  const total = results.reduce((acc, item) => {
+    if (item.profit) {
+      acc += item.profit;
+    }
+    if (item.loss) {
+      acc -= item.loss;
+    }
+    return acc;
+  }, 0);
+
+  // แสดงผลรวม
+  //console.log("Total result: ", total);
+  //console.log("results : ",results)
+  //return results;
+  return {
+    data: results,
+    total: total
+  }
+}
 
 
 module.exports = {
@@ -929,4 +1202,6 @@ module.exports = {
   checkUserPlayBalance,
   fetchPlaySummary,
   generateFlexSummaryMessage,
+  setResultMainPlay,
+  updateRemainingFund,
 };
