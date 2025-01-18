@@ -41,7 +41,7 @@ function getBankAccountDetails(member) {
                     weight: "bold",
                     size: "xl",
                     color: "#FFFFFF",
-                    wrap: true,
+                    wrap: false,
                     align: "center",
                   },
                   {
@@ -49,7 +49,7 @@ function getBankAccountDetails(member) {
                     text: bank_name,
                     size: "md",
                     color: "#FFFFFF",
-                    wrap: true,
+                    wrap: false,
                     align: "center",
                   },
                   {
@@ -57,7 +57,7 @@ function getBankAccountDetails(member) {
                     text: bank_account_name,
                     size: "md",
                     color: "#FFFFFF",
-                    wrap: true,
+                    wrap: false,
                     align: "center",
                   },
                 ],

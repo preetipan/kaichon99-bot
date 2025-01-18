@@ -4,13 +4,13 @@ const { Client } = require("@line/bot-sdk");
 const { channelAccessToken } = require("../../../config");
 const client = new Client({ channelAccessToken });
 
-// ฟังก์ชันเพื่อดึงชื่อผู้ใช้จาก userID
-async function getUserNameFromUserID(userID) {
+// ฟังก์ชันเพื่อดึงชื่อผู้ใช้จาก userID ในกลุ่ม
+async function getUserNameFromUserID(groupId, userID) {
   try {
-    const profile = await client.getProfile(userID);
-    return profile.displayName; // คืนค่าเฉพาะชื่อที่แสดง
+    const member = await client.getGroupMemberProfile(groupId, userID);
+    return member.displayName; // คืนค่าเฉพาะชื่อที่แสดง
   } catch (error) {
-    console.error('Error fetching user profile: ', error);
+    console.error("Error fetching group member profile: ", error);
     return userID; // กรณีมีข้อผิดพลาด ให้แสดง userID แทน
   }
 }
@@ -403,7 +403,7 @@ async function updateMainPlay(event, status) {
     );
 
     const summary = await fetchPlaySummary(event);
-    const flexMessage = await generateFlexSummaryMessage(summary);
+    const flexMessage = await generateFlexSummaryMessage(groupId, summary);
 
     const messages = [
       {
@@ -837,9 +837,8 @@ async function fetchPlaySummary(event) {
   }
 }
 
-
 // ฟังก์ชันหลักสำหรับสร้าง Flex Message
-async function generateFlexSummaryMessage(summary) {
+async function generateFlexSummaryMessage(groupId, summary) {
   // ถ้าไม่มีข้อมูลให้แสดงข้อความว่า "ไม่มีรายการเล่น"
   if (summary.length === 0) {
     return {
@@ -893,7 +892,7 @@ async function generateFlexSummaryMessage(summary) {
 
   // ดึงชื่อผู้ใช้ทั้งหมดพร้อมกัน
   const userNames = await Promise.all(
-    groupedEntries.map(async ([userID]) => getUserNameFromUserID(userID))
+    groupedEntries.map(async ([userID]) => getUserNameFromUserID(groupId, userID))
   );
 
   return {
@@ -933,6 +932,7 @@ async function generateFlexSummaryMessage(summary) {
                 size: "md",
                 weight: "bold",
                 color: "#111111",
+                margin: "md",
               },
               ...bets.slice(0, 4).map((bet, betIndex) => ({
                 type: "text",
@@ -952,8 +952,8 @@ async function generateFlexSummaryMessage(summary) {
               {
                 type: "separator",
                 margin: "md",
-                color: "#000000"
-              }
+                color: "#E5E5E5",
+              },
             ];
           }
 
@@ -963,6 +963,7 @@ async function generateFlexSummaryMessage(summary) {
     },
   };
 }
+
 
 // ฟังก์ชันสรุปเงินคงเหลือล่าสุดก่อนสรุปผล
 async function updateRemainingFund(summary, resultStatus) {
@@ -1000,7 +1001,6 @@ async function updateRemainingFund(summary, resultStatus) {
 
     // กรองข้อมูลที่มีค่า null
     const validResults = updateResults.filter(result => result !== null);
-
     // สร้าง Flex message contents
     const flexContents = await Promise.all(validResults.map(async (result) => {
       try {
@@ -1011,7 +1011,7 @@ async function updateRemainingFund(summary, resultStatus) {
           cal = Math.floor(parseFloat(result.userData.fund) + parseFloat(result.sum_results));
         }
 
-        const userName = await getUserNameFromUserID(result.userData.userID);
+        const userName = await getUserNameFromUserID(result.userData.groupId, result.userData.userID);
 
         // อัปเดตข้อมูล fund ของผู้ใช้
         await axios.patch(`${process.env.API_URL}/user/${result.userData.userID}`, { fund: cal });
@@ -1097,26 +1097,438 @@ async function updateRemainingFund(summary, resultStatus) {
   }
 }
 
+// ฟังก์ชันสรุปยอดเล่นในรอบนั้นๆ
+async function checkPlayInRound(event) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+    const groupId = event.source.groupId || event.source.roomId;
+    const idMainRound = await checkMainRoundNow(event);
+
+    const response = await axios.get(
+      `${process.env.API_URL}/transaction-play/total-bet/round/${idMainRound}/group/${groupId}`
+    );
+
+    const dataPlay = response.data;
+    //console.log("dataPlay : " ,dataPlay);
+
+    // เพิ่มการตรวจสอบข้อมูล
+    if (!dataPlay || dataPlay.red === undefined || dataPlay.blue === undefined) {
+      throw new Error("ข้อมูลไม่ครบถ้วน");
+    }
+
+    // คำนวณเปอร์เซ็นต์และยอดรวม
+    const total = dataPlay.red + dataPlay.blue;
+    const redPercent = total > 0 ? ((dataPlay.red / total) * 100).toFixed(0) : 0;
+    const bluePercent = total > 0 ? ((dataPlay.blue / total) * 100).toFixed(0) : 0;
+
+    const flexMessage = {
+      type: "flex",
+      altText: "รายการเดิมพัน",
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "รายการเดิมพัน",
+              weight: "bold",
+              color: "#FFFFFF",
+              size: "lg",
+              align: "center"
+            }
+          ],
+          backgroundColor: "#DC1C4B",
+          paddingTop: "lg",
+          paddingBottom: "lg"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "lg",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "แดง",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#FF0000",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.red.toLocaleString()} บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${redPercent}%`,
+                      align: "end",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 2,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "น้ำเงิน",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#0000FF",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.blue.toLocaleString()} บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${bluePercent}%`,
+                      align: "end",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 2,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            }
+          ],
+          paddingAll: "lg"
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: `รวม ${total.toLocaleString()} บาท`,
+              weight: "bold",
+              size: "md",
+              align: "center"
+            }
+          ],
+          backgroundColor: "#F5F5F5",
+          paddingTop: "md",
+          paddingBottom: "md"
+        }
+      }
+    };
+    return flexMessage;
+  } catch (error) {
+    console.error("Error :", error);
+    throw new Error("เกิดข้อผิดพลาด");
+  }
+}
+
+
+// ฟังก์ชันสรุปยอดเล่นในรอบนั้นๆ
+async function checkSumTorLong(event, price) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+    const groupId = event.source.groupId || event.source.roomId;
+    const idMainRound = await checkMainRoundNow(event);
+
+    const payload = {
+      roundId: idMainRound,
+      groupId: groupId,
+      price: price
+    }
+    // ส่งข้อมูล payload ไปในคำขอ POST
+    const response = await axios.post(
+      `${process.env.API_URL}/transaction-play/sumtotal-bet`, // URL API
+      payload // ส่ง payload ใน request body
+    );
+
+    const dataPlay = response.data;
+
+    const flexMessage = {
+      type: "flex",
+      altText: "แนะนำออกตัว",
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "แนะนำออกตัว",
+              weight: "bold",
+              color: "#FFFFFF",
+              size: "lg",
+              align: "center"
+            }
+          ],
+          backgroundColor: "#f5427b",
+          paddingTop: "lg",
+          paddingBottom: "lg"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "lg",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "ถ้าแดงชนะ",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#FF0000",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.plays.redwin.toLocaleString()}บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `50%`,
+                      align: "end",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 2,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "ถ้าน้ำเงินชนะ",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#0000FF",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.plays.bluewin.toLocaleString()}บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `50%`,
+                      align: "end",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 2,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            }
+          ],
+          paddingAll: "lg"
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: `ต้องออกตัว ${dataPlay.plays.play === "RED" ? "🔴 แดง" : "🔵 น้ำเงิน"} ${dataPlay.plays.transferredAmount.toLocaleString()} บาท`,
+              weight: "bold",
+              size: "md",
+              align: "center",
+              color: "#000000"
+            }            
+          ],
+          backgroundColor: "#F5F5F5",
+          paddingTop: "md",
+          paddingBottom: "md"
+        }
+      }
+    };
+    return flexMessage;
+  } catch (error) {
+    console.error("Error :", error);
+    throw new Error("เกิดข้อผิดพลาด");
+  }
+}
 
 
 
 function calculateUserSummary(summary, userID) {
+
   const PRICE_RULES = {
     RED: {
-      "ตร": 0.9, "สด": 0.8, "ด8.5": 0.75, "ด8": 0.7, "ด7.5": 0.65, "ด7": 0.6,
-      "ด6.5": 0.55, "ด6": 0.5, "ด5.5": 0.45, "ด5": 0.4, "ด4.5": 0.35, "ด4": 0.3,
-      "ด3.5": 0.25, "ด3": 0.2, "ด2.5": 0.15, "ด2": 0.1, "ด1": 0.067, "ด100": 0.01,
-      "สง": 1, "ง8.5": 1.05, "ง8": 1.11, "ง7.5": 1.17, "ง7": 1.25, "ง6.5": 1.33,
-      "ง6": 1.42, "ง5.5": 1.53, "ง5": 1.66, "ง4.5": 1.81, "ง4": 2, "ง3.5": 2.22,
-      "ง3": 2.5, "ง2.5": 2.85, "ง2": 3.33, "ง1": 10, "ง100": 20,
+      "ตร": 9, "สด": 8, "ด8.5": 7.5, "ด8": 7, "ด7.5": 6.5, "ด7": 6,
+      "ด6.5": 55, "ด6": 5, "ด5.5": 4.5, "ด5": 4, "ด4.5": 3.5, "ด4": 3,
+      "ด3.5": 2.5, "ด3": 2, "ด2.5": 1.5, "ด2": 1, "ด1": 0.666, "ด100": 0.1,
+      "สง": 10, "ง8.5": 9.5, "ง8": 9, "ง7.5": 8.5, "ง7": 8, "ง6.5": 7.5,
+      "ง6": 7, "ง5.5": 6.5, "ง5": 6, "ง4.5": 5.5, "ง4": 5, "ง3.5": 4.5,
+      "ง3": 4, "ง2.5": 3.5, "ง2": 3, "ง1": 1, "ง100": 0.5,
     },
     BLUE: {
-      "ตร": 0.9, "สง": 0.8, "ง8.5": 0.75, "ง8": 0.7, "ง7.5": 0.65, "ง7": 0.6,
-      "ง6.5": 0.55, "ง6": 0.5, "ง5.5": 0.45, "ง5": 0.4, "ง4.5": 0.35, "ง4": 0.3,
-      "ง3.5": 0.25, "ง3": 0.2, "ง2.5": 0.15, "ง2": 0.1, "ง1": 0.067, "ง100": 0.01,
-      "สด": 1, "ด8.5": 1.05, "ด8": 1.11, "ด7.5": 1.17, "ด7": 1.25, "ด6.5": 1.33,
-      "ด6": 1.42, "ด5.5": 1.53, "ด5": 1.66, "ด4.5": 1.81, "ด4": 2, "ด3.5": 2.22,
-      "ด3": 2.5, "ด2.5": 2.85, "ด2": 3.33, "ด1": 10, "ด100": 20,
+      "ตร": 9, "สง": 8, "ง8.5": 7.5, "ง8": 7, "ง7.5": 6.5, "ง7": 6,
+      "ง6.5": 5.5, "ง6": 5, "ง5.5": 4.5, "ง5": 4, "ง4.5": 3.5, "ง4": 3,
+      "ง3.5": 2.5, "ง3": 2, "ง2.5": 1.5, "ง2": 1, "ง1": 0.67, "ง100": 0.1,
+      "สด": 10, "ด8.5": 9.5, "ด8": 9, "ด7.5": 8.5, "ด7": 8, "ด6.5": 7.5,
+      "ด6": 7, "ด5.5": 6.5, "ด5": 6, "ด4.5": 5.5, "ด4": 5, "ด3.5": 4.5,
+      "ด3": 4, "ด2.5": 3.5, "ด2": 3, "ด1": 1, "ด100": 0.5,
     },
   };
 
@@ -1129,13 +1541,38 @@ function calculateUserSummary(summary, userID) {
 
     const priceRule = PRICE_RULES[betType][subRound.price];
 
+    //console.log("userSummary : ", userSummary)
+
     let resultSummary = {};
 
-    if (
+    if (round.result === "DRAW") {
+      resultSummary = {
+        user: item.user,
+        betType,
+        betAmount,
+        profit: 0,
+        loss: 0,
+        status: "DRAW",
+        subRound: subRound.numberRound,
+        mainRound: round.numberMainRound,
+      };
+    } else if (
       (round.result === "WIN_BLUE" && betType === "BLUE") ||
       (round.result === "WIN_RED" && betType === "RED")
     ) {
-      const profit = betAmount * priceRule;
+
+      let profit = 0;
+      if (
+        (subRound.price.startsWith('ด') && betType === "BLUE") ||
+        (subRound.price.startsWith('ง') && betType === "RED") ||
+        (subRound.price.startsWith('สง') && betType === "RED") ||
+        (subRound.price.startsWith('สด') && betType === "BLUE")
+      ) {
+        profit = betAmount;
+      } else {
+        profit = betAmount * (priceRule / 10);
+      }
+
       resultSummary = {
         user: item.user,
         betType,
@@ -1146,11 +1583,23 @@ function calculateUserSummary(summary, userID) {
         mainRound: round.numberMainRound,
       };
     } else {
+
+      let loss = 0;
+      if (
+        (subRound.price.startsWith('ด') && betType === "BLUE") ||
+        (subRound.price.startsWith('ง') && betType === "RED") ||
+        (subRound.price.startsWith('สง') && betType === "RED") ||
+        (subRound.price.startsWith('สด') && betType === "BLUE")
+      ) {
+        loss = betAmount * (priceRule / 10);
+      } else {
+        loss = betAmount;
+      }
       resultSummary = {
         user: item.user,
         betType,
         betAmount,
-        loss: betAmount,
+        loss,
         status: "LOSE",
         subRound: subRound.numberRound,
         mainRound: round.numberMainRound,
@@ -1161,25 +1610,29 @@ function calculateUserSummary(summary, userID) {
   });
 
   // คำนวณผลรวม
-  const total = results.reduce((acc, item) => {
-    if (item.profit) {
-      acc += item.profit;
-    }
-    if (item.loss) {
-      acc -= item.loss;
-    }
-    return acc;
-  }, 0);
+  let total = 0;
+  if (userSummary.some((item) => item.round.result === "DRAW")) {
+    total = 0;
+  } else {
+    total = results.reduce((acc, item) => {
+      if (item.profit) {
+        acc += item.profit;
+      }
+      if (item.loss) {
+        acc -= item.loss;
+      }
+      return acc;
+    }, 0);
+  }
+  total = Math.floor(total);
 
   // แสดงผลรวม
-  //console.log("Total result: ", total);
-  //console.log("results : ",results)
-  //return results;
   return {
     data: results,
-    total: total
-  }
+    total: total,
+  };
 }
+
 
 
 module.exports = {
@@ -1204,4 +1657,6 @@ module.exports = {
   generateFlexSummaryMessage,
   setResultMainPlay,
   updateRemainingFund,
+  checkPlayInRound,
+  checkSumTorLong,
 };

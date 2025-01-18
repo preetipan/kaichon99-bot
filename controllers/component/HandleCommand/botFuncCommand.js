@@ -3,7 +3,6 @@ const { channelAccessToken } = require("../../../config");
 const axios = require('axios');
 
 const {
-  getSortedUserDetails,
   AddMember,
   checkIfUserExists,
   getUserMoney,
@@ -44,6 +43,8 @@ const {
   fetchPlaySummary,
   updateRemainingFund,
   resetSubRound,
+  checkPlayInRound,
+  checkSumTorLong,
 } = require("../BotFunc/playController");
 const { checkUserRole } = require("../BotFunc/usePermission");
 
@@ -152,8 +153,7 @@ async function handleAddAllMembers(event) {
   }
 }
 
-// Handle เพิ่มสิทธิ์ แอดมิน
-async function handleUpdateAdminRole(event, userMessage, admin) {
+async function handleUpdateAdminRole(event, actionType) {
   try {
     // ตรวจสอบสิทธิ์ของผู้ใช้ (Superadmin หรือ Admin)
     const permissionResult = await checkUserRole(event, [
@@ -164,48 +164,55 @@ async function handleUpdateAdminRole(event, userMessage, admin) {
       return null;
     }
 
-    // ใช้ regex เพื่อจับคู่ข้อความในรูปแบบ @username +admin หรือ @username -admin
-    const userIdMatch = userMessage.match(/^@([^\s]+)\s*(\+admin|-admin)$/i);
+    console.log("Event message:", event.message);
+    console.log("Mentioned entities:", event.message.mention);
 
-    console.log("userIdMatch:", userIdMatch); // ตรวจสอบผลลัพธ์จาก match
-
-    if (!userIdMatch) {
+    // ตรวจสอบว่ามีการ mention ผู้ใช้หรือไม่
+    if (!event.message.mention || !event.message.mention.mentionees || event.message.mention.mentionees.length === 0) {
       return sendErrorMessage(
         event,
-        "คำสั่งไม่ถูกต้อง. ตัวอย่าง: @username +admin หรือ @username -admin"
+        "กรุณา mention (@) ผู้ใช้ที่ต้องการจัดการสิทธิ์"
       );
     }
 
-    // ดึง userId และ คำสั่ง (+admin หรือ -admin) ออกจากข้อความ
-    const userId = userIdMatch[1]; // ชื่อผู้ใช้ที่ได้รับจากข้อความ
-    const action = userIdMatch[2]; // +admin หรือ -admin
-
-    let profileName = "ไม่รู้จักชื่อ";
-    try {
-      // ใช้ userId ที่ถูกต้องจากข้อความที่จับได้
-      const profile = await client.getProfile(userId);
-      console.log("profile : " + profile);
-      if (profile && profile.displayName) {
-        profileName = profile.displayName;
-      }
-    } catch (error) {
-      console.error("Error fetching user profile:", error);
-      profileName = "ไม่พบโปรไฟล์";
+    // ใช้ userId จาก mention แทนการใช้ username
+    const userId = event.message.mention.mentionees[0].userId;
+    if (!userId) {
+      return sendErrorMessage(
+        event,
+        "ไม่สามารถระบุผู้ใช้ได้ กรุณาลองใหม่อีกครั้ง"
+      );
     }
+
+    console.log("Processing user ID:", userId);
 
     let newRole;
     let roleName;
 
-    if (action === "+admin") {
+    if (actionType.admin === 1) {
       newRole = 2; // แอดมิน
       roleName = "แอดมิน";
-    } else if (action === "-admin") {
+    } else if (actionType.admin === 2) {
       newRole = 3; // สมาชิกทั่วไป
       roleName = "สมาชิกทั่วไป";
     } else {
-      return sendErrorMessage(event, "ไม่พบคำสั่งที่ถูกต้อง");
+      return sendErrorMessage(event, "คำสั่งไม่ถูกต้อง");
     }
 
+    // ดึงข้อมูลโปรไฟล์โดยใช้ userId
+    let profileName = "ไม่รู้จักชื่อ";
+    try {
+      const member = await client.getGroupMemberProfile(event.source.groupId, userId);
+      if (member && member.displayName) {
+        profileName = member.displayName;
+      }
+    } catch (error) {
+      console.error("Error fetching user profile:", error);
+      // ถ้าไม่สามารถดึงโปรไฟล์ได้ ให้ใช้ชื่อเริ่มต้น
+      profileName = "สมาชิกที่ถูก mention";
+    }
+
+    // อัพเดตข้อมูลโดยใช้ userId
     const updateResult = await updateAdminData(userId, event.source.groupId, {
       role: newRole,
     });
@@ -215,7 +222,6 @@ async function handleUpdateAdminRole(event, userMessage, admin) {
         type: "text",
         text: `${profileName} ได้รับการอัปเดตเป็น ${roleName} เรียบร้อยแล้ว!`,
       };
-
       return client.replyMessage(event.replyToken, replyMessage);
     } else {
       return sendErrorMessage(event, `ไม่สามารถอัปเดตสิทธิ์ ${roleName} ได้`);
@@ -647,7 +653,7 @@ async function handleCloseMainPlayCommand(event) {
         axios.patch(`${process.env.API_URL}/user/${userId}/remainingFund`)
           .then(response => {
             if (response && response.data) {
-              console.log("response.data :", response.data);
+              //console.log("response.data :", response.data);
             } else {
               console.error(`Failed to fetch data for user: ${userId}`);
             }
@@ -770,6 +776,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
       selectedColors = { coler1: "#E83A30", coler2: "#0066CC" };
     }
 
+    const pic = ["ตร", "สด", "ด"].includes(type) ? "red" : "blue";
 
     // ตั้งค่ารอบย่อย
     await setNumberSubRound(event);
@@ -779,7 +786,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
 
     if (addOdds) {
 
-      const img = `${process.env.IMGE_URL}/Img/end_round.jpg`;
+      const img = `${process.env.IMGE_URL}/Img/open_${pic}.jpg`;
 
       const flexMessage = {
         type: "flex",
@@ -810,7 +817,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
                     color: `${selectedColors.coler1}`,
                     weight: "bold",
                     align: "center",
-                    wrap: true
+                    wrap: false
                   },
                   {
                     type: "text",
@@ -819,7 +826,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
                     color: `${selectedColors.coler2}`,
                     weight: "bold",
                     align: "center",
-                    wrap: true
+                    wrap: false
                   }
                 ]
               }
@@ -963,8 +970,7 @@ async function handleUserBet(event, { type, amount }) {
 
     const round_id = subround_data?.round?.id;
     const subround_id = subround_data?.id;
-    const profile = await client.getProfile(userId);
-    const userName = profile?.displayName || "ไม่ทราบชื่อ";
+    const member = await client.getGroupMemberProfile(event.source.groupId, userId);
 
     const bet_type = type === "ด" ? "RED" : "BLUE";
     const backgroundColor = type === "ด" ? "#ffcdd2" : "#bbdefb";
@@ -1002,7 +1008,7 @@ async function handleUserBet(event, { type, amount }) {
                   {
                     type: "image",
                     url:
-                      profile?.pictureUrl || "https://via.placeholder.com/100",
+                    member.pictureUrl || "https://via.placeholder.com/100",
                     size: "xs",
                     aspectMode: "cover",
                     aspectRatio: "1:1",
@@ -1015,14 +1021,14 @@ async function handleUserBet(event, { type, amount }) {
                     contents: [
                       {
                         type: "text",
-                        text: `รหัส ${userData?.id || "N/A"} ${userName}`,
+                        text: `รหัส ${userData?.id || "N/A"} ${member.displayName}`,
                         size: "sm",
                         weight: "regular",
                       },
                       {
                         type: "text",
                         text: `ยก ${subround_data?.numberRound || "-"
-                          } ✅ ${type}=${amount.toLocaleString()} #ตง10/9`,
+                          } ✅ ${type}=${amount.toLocaleString()}`,
                         size: "xs",
                         color: "#000000",
                       },
@@ -1227,8 +1233,6 @@ async function handleReturnResultConfirmation(event) {
 // Handle ยืนยันผลการแข่งขัน
 async function handleResultConfirmation(event, result, resultStatus) {
   try {
-
-    console.log("resultStatus : ", resultStatus)
     // ตรวจสอบสิทธิ์ผู้ใช้งาน
     const permissionResult = await checkUserRole(event, [
       "Superadmin",
@@ -1260,6 +1264,59 @@ async function handleResultConfirmation(event, result, resultStatus) {
 
     return await client.replyMessage(event.replyToken, results);
 
+  } catch (error) {
+    console.error("Error in handleConfirmResultCommand:", error);
+    return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
+  }
+}
+
+// Handle ยืนยันผลการแข่งขัน
+async function handleUserPlayInRound(event) {
+  try {
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
+
+    if (!permissionResult.success) {
+      return null;
+    }
+
+    const playinround = await checkPlayInRound(event);
+    // ส่งทั้งข้อความและภาพ
+    if (playinround) {
+      await client.replyMessage(event.replyToken, playinround);
+    }
+  } catch (error) {
+    console.error("Error in handleConfirmResultCommand:", error);
+    return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
+  }
+}
+
+
+// Handle
+async function handleCalTorLong(event, amount, action, type) {
+  try {
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
+
+    if (!permissionResult.success) {
+      return null;
+    }
+
+    let price
+    if(type === "long"){
+      price = `10/${amount}`
+    }else {
+      price = `${amount}/10`
+    }
+
+    const cal = await checkSumTorLong(event, price);
+    if (cal) {
+      await client.replyMessage(event.replyToken, cal);
+    }
   } catch (error) {
     console.error("Error in handleConfirmResultCommand:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
@@ -1300,20 +1357,20 @@ function calculateOdds(type, oddsValue) {
   if (oddsValue === 1) {
     return {
       x: `ต่อ ${side} แทง 150 ได้ 10`,
-      y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง 10 ได้ 100`,
+      y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง 100 เสีย 10`,
     };
   }
   if (oddsValue === 100) {
     return {
       x: `ต่อ ${side} แทง 100 ได้ 1`,
-      y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง 10 ได้ 200`,
+      y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง 200 เสีย 10`,
     };
   }
 
   // สำหรับกรณีปกติ
   return {
     x: `ต่อ ${side} แทง 10 ได้ ${odds.ต่อ}`,
-    y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง ${odds.รอง} ได้ 10`,
+    y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง 10 เสีย ${odds.รอง}`,
   };
 }
 
@@ -1349,4 +1406,6 @@ module.exports = {
   handleResultConfirmation,
   handleReturnConfirmResultCommand,
   handleReturnResultConfirmation,
+  handleUserPlayInRound,
+  handleCalTorLong,
 };

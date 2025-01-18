@@ -32,6 +32,8 @@ const {
   handleResultConfirmation,
   handleReturnConfirmResultCommand,
   handleReturnResultConfirmation,
+  handleUserPlayInRound,
+  handleCalTorLong,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
@@ -79,35 +81,37 @@ async function handleMemberJoined(event) {
           altText: `ยินดีต้อนรับกลับคุณ ${member.displayName} สู่กลุ่ม DTG! ข้อมูลของคุณได้รับการอัปเดตแล้ว.`,
           contents: {
             type: "bubble",
+            size: "kilo", // ทำให้ bubble มีขนาดเล็กลง
             hero: {
               type: "image",
               url: member.pictureUrl,
               size: "full",
-              aspectRatio: "20:13",
+              aspectRatio: "4:3", // ปรับขนาดรูปให้เหมาะสม
               aspectMode: "cover",
             },
             body: {
               type: "box",
               layout: "vertical",
+              spacing: "sm",
               contents: [
                 {
                   type: "text",
                   text: `ยินดีต้อนรับกลับ ${member.displayName}`,
                   weight: "bold",
-                  size: "xl",
+                  size: "lg", // ขนาดข้อความเล็กลง
                   color: "#1DB446",
                   align: "center",
                 },
                 {
                   type: "text",
                   text: "สู่กลุ่ม DTG!",
-                  size: "md",
+                  size: "sm", // ข้อความรองลงขนาดเล็กลง
                   color: "#555555",
                   align: "center",
                 },
                 {
                   type: "separator",
-                  margin: "md",
+                  margin: "lg", // เพิ่มพื้นที่ว่างระหว่างองค์ประกอบ
                 },
               ],
             },
@@ -116,40 +120,43 @@ async function handleMemberJoined(event) {
         await client.replyMessage(event.replyToken, welcomeBackMessage);
       } else {
         await AddMember(member, userId, groupId);
+
         const replyMessage = {
           type: "flex",
-          altText: `ยินดีต้อนรับคุณ ${member.displayName} สู่กลุ่ม DTG`,
+          altText: `ยินดีต้อนรับคุณ ${member.displayName} สู่กลุ่ม Taiga689`,
           contents: {
             type: "bubble",
+            size: "kilo",
             hero: {
               type: "image",
               url: member.pictureUrl,
               size: "full",
-              aspectRatio: "20:13",
+              aspectRatio: "4:3",
               aspectMode: "cover",
             },
             body: {
               type: "box",
               layout: "vertical",
+              spacing: "sm",
               contents: [
                 {
                   type: "text",
                   text: `ยินดีต้อนรับคุณ ${member.displayName}`,
                   weight: "bold",
-                  size: "xl",
-                  color: "#1DB446", // สีเขียวสดใส
+                  size: "lg",
+                  color: "#1DB446",
                   align: "center",
                 },
                 {
                   type: "text",
                   text: "สู่กลุ่ม DTG!",
-                  size: "md",
+                  size: "sm",
                   color: "#555555",
                   align: "center",
                 },
                 {
                   type: "separator",
-                  margin: "md",
+                  margin: "lg",
                 },
               ],
             },
@@ -157,6 +164,7 @@ async function handleMemberJoined(event) {
         };
         await client.replyMessage(event.replyToken, replyMessage);
       }
+
     } catch (error) {
       console.error("Error processing new user:", error);
     }
@@ -250,21 +258,18 @@ async function handleTextMessage(event) {
 
     // คำสั่งเฉพาะกลุ่มหลัก
     if (isGroup) {
-      // เพิ่มแอดมินสำหรับกลุ่มหลัก
-      if (
-        userMessage.toLowerCase().startsWith("@") &&
-        userMessage.includes("+admin")
-      ) {
-        return handleUpdateAdminRole(event, userMessage, { admin: 1 }); // กำหนดเป็นแอดมิน
+      // เพิ่มแอดมิน
+      if (userMessage.toLowerCase().includes("+admin")) {
+        console.log("Adding admin");
+        return handleUpdateAdminRole(event, { admin: 1 });
       }
 
-      // ลบแอดมินสำหรับกลุ่มหลัก
-      if (
-        userMessage.toLowerCase().startsWith("@") &&
-        userMessage.includes("-admin")
-      ) {
-        return handleUpdateAdminRole(event, userMessage, { admin: 2 }); // กำหนดเป็นสมาชิกทั่วไป
+      // ลบแอดมิน
+      if (userMessage.toLowerCase().includes("-admin")) {
+        console.log("Removing admin");
+        return handleUpdateAdminRole(event, { admin: 2 });
       }
+
 
       // เปิดบ้านไก่ชน
       if (userMessage.toLowerCase() === "z") {
@@ -460,7 +465,48 @@ async function handleTextMessage(event) {
         }
       }
 
+    }
 
+    // คำสั่งเฉพาะกลุ่มหลังบ้าน
+    if (isSubGroup) {
+
+      // เช็คยอดล่าสุด สำหรับกลุ่มหลังบ้าน
+      if (userMessage.toLowerCase() === "u") {
+        return await handleUserPlayInRound(event);
+      }
+      
+      if (userMessage.toLowerCase().startsWith('q/')) {
+        const parts = userMessage.substring(2);  // ตัด 'q/' ออก
+        let amount;
+        let action;
+        let type;
+      
+        // ตรวจสอบว่าจำนวนอยู่ที่ด้านหน้า (เช่น 'Q/8ด') หรือด้านหลัง (เช่น 'Q/ด8')
+        if (parts.charAt(parts.length - 1) === 'ด' || parts.charAt(parts.length - 1) === 'ง') {
+          // ถ้าจำนวนอยู่ข้างหน้า
+          amount = parseInt(parts.substring(0, parts.length - 1));
+          type = "long"
+          action = parts.charAt(parts.length - 1);
+        } else if (parts.charAt(0) === 'ด' || parts.charAt(0) === 'ง') {
+          // ถ้าจำนวนอยู่ข้างหลัง
+          amount = parseInt(parts.substring(1));
+          action = parts.charAt(0);
+          type = "tor"
+        }
+
+        return await handleCalTorLong(event, amount, action, type);
+      // console.log("amount : ", amount)
+      // console.log("action : ", action)
+      // console.log("type : ", type)
+      //   if (action === 'ด') {
+      //     return `เพิ่ม ${amount} ในฝั่งแดงรอง`;
+      //   } else if (action === 'ง') {
+      //     return `เพิ่ม ${amount} ในฝั่งแดงต่อ`;
+      //   } else {
+      //     return "คำสั่งไม่ถูกต้อง";
+      //   }
+       }
+      
 
     }
   }

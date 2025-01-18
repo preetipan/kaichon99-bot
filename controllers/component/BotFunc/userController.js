@@ -75,7 +75,7 @@ async function getUserMoney(event, userId, member) {
                         weight: "bold",
                         size: "lg",
                         align: "center",
-                        wrap: true,
+                        wrap: false,
                       },
                       ...userPlay.map((play) => ({
                         type: "box",
@@ -88,7 +88,7 @@ async function getUserMoney(event, userId, member) {
                             margin: "sm",
                             size: "sm",
                             align: "start",
-                            wrap: true,
+                            wrap: false,
                             color: "#FFFFFF",
                           },
                           {
@@ -98,7 +98,7 @@ async function getUserMoney(event, userId, member) {
                             margin: "sm",
                             size: "sm",
                             align: "end",
-                            wrap: true,
+                            wrap: false,
                             color: "#FFFFFF",
                           },
                         ],
@@ -115,7 +115,7 @@ async function getUserMoney(event, userId, member) {
                         size: "sm",
                         align: "end",
                         margin: "md",
-                        wrap: true,
+                        wrap: false,
                       },
                     ],
                     flex: 2,
@@ -139,7 +139,7 @@ async function getUserMoney(event, userId, member) {
                         weight: "bold",
                         size: "md",
                         align: "end",
-                        wrap: true,
+                        wrap: false,
                       },
                     ],
                   },
@@ -182,7 +182,7 @@ async function getUserMoney(event, userId, member) {
                     weight: "bold",
                     size: "lg",
                     align: "center",
-                    wrap: true,
+                    wrap: false,
                   },
                   {
                     type: "text",
@@ -191,7 +191,7 @@ async function getUserMoney(event, userId, member) {
                     size: "md",
                     margin: "md",
                     align: "center",
-                    wrap: true,
+                    wrap: false,
                   },
                 ],
                 flex: 2,
@@ -314,17 +314,18 @@ async function updateAdminData(userId, groupId, { role }) {
     console.log(`response : `, response);
 
     // ตรวจสอบสถานะการตอบกลับจาก API
-    if (response.status === 200) {
+    if (response.status === 200 && response.data) {
       console.log(`User ${userId} data updated:`, response.data);
-      return { success: true, message: "Data updated successfully." };
+      return { success: true, message: "ข้อมูลของสมาชิกได้รับการอัปเดตแล้ว" };
     } else {
       console.error(
-        `Failed to update data for User ${userId}:`,
-        response.status
+        `ไม่สามารถอัปเดตข้อมูลสำหรับผู้ใช้ ${userId}:`,
+        response.status,
+        response.data
       );
       return {
         success: false,
-        message: `Failed with status code ${response.status}`,
+        message: `ไม่สามารถอัปเดตข้อมูลได้. โปรดลองใหม่อีกครั้งในภายหลัง`,
       };
     }
   } catch (error) {
@@ -336,6 +337,7 @@ async function updateAdminData(userId, groupId, { role }) {
     return { success: false, message: error.response?.data || error.message };
   }
 }
+
 
 //ฟังก์ชันเช็คข้อมูลผู้ใช้
 async function checkUserData(userId) {
