@@ -1510,6 +1510,178 @@ async function checkSumTorLong(event, price) {
 }
 
 
+// ฟังก์ชันสรุปยอดเล่นในรอบนั้นๆ
+async function checkSumPlus(event) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+    const groupId = event.source.groupId || event.source.roomId;
+    const idMainRound = await checkMainRoundNow(event);
+
+    const payload = {
+      roundId: idMainRound,
+      groupId: groupId,
+    }
+    // ส่งข้อมูล payload ไปในคำขอ POST
+    const response = await axios.post(
+      `${process.env.API_URL}/transaction-play/sumtotalplus-bet`,
+      payload // ส่ง payload ใน request body
+    );
+
+    const dataPlay = response.data;
+
+    const flexMessage = {
+      type: "flex",
+      altText: "สรุปกลุ่มได้เสีย",
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "สรุปกลุ่มได้เสีย",
+              weight: "bold",
+              color: "#FFFFFF",
+              size: "lg",
+              align: "center"
+            }
+          ],
+          backgroundColor: "#f5427b",
+          paddingTop: "lg",
+          paddingBottom: "lg"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "lg",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "ถ้าแดงชนะ",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#FF0000",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.redwin.toLocaleString()}บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            },
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "ถ้าน้ำเงินชนะ",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#0000FF",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.bluewin.toLocaleString()}บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            }
+          ],
+          paddingAll: "lg"
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: `ออกตัวยอดลบ`,
+              weight: "bold",
+              size: "md",
+              align: "center",
+              color: "#000000"
+            }            
+          ],
+          backgroundColor: "#F5F5F5",
+          paddingTop: "md",
+          paddingBottom: "md"
+        }
+      }
+    };
+    return flexMessage;
+  } catch (error) {
+    console.error("Error :", error);
+    throw new Error("เกิดข้อผิดพลาด");
+  }
+}
+
+
 
 function calculateUserSummary(summary, userID) {
 
@@ -1659,4 +1831,5 @@ module.exports = {
   updateRemainingFund,
   checkPlayInRound,
   checkSumTorLong,
+  checkSumPlus,
 };

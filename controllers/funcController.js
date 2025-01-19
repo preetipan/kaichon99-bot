@@ -34,6 +34,7 @@ const {
   handleReturnResultConfirmation,
   handleUserPlayInRound,
   handleCalTorLong,
+  handleCalPlus,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
@@ -465,6 +466,12 @@ async function handleTextMessage(event) {
         }
       }
 
+
+      // เช็คยอดล่าสุด สำหรับกลุ่มหลังบ้าน
+      if (userMessage.toLowerCase() === "u") {
+        return await handleUserPlayInRound(event);
+      }
+
     }
 
     // คำสั่งเฉพาะกลุ่มหลังบ้าน
@@ -472,15 +479,15 @@ async function handleTextMessage(event) {
 
       // เช็คยอดล่าสุด สำหรับกลุ่มหลังบ้าน
       if (userMessage.toLowerCase() === "u") {
-        return await handleUserPlayInRound(event);
+        return await handleCalPlus(event);
       }
-      
+
       if (userMessage.toLowerCase().startsWith('q/')) {
         const parts = userMessage.substring(2);  // ตัด 'q/' ออก
         let amount;
         let action;
         let type;
-      
+
         // ตรวจสอบว่าจำนวนอยู่ที่ด้านหน้า (เช่น 'Q/8ด') หรือด้านหลัง (เช่น 'Q/ด8')
         if (parts.charAt(parts.length - 1) === 'ด' || parts.charAt(parts.length - 1) === 'ง') {
           // ถ้าจำนวนอยู่ข้างหน้า
@@ -495,18 +502,7 @@ async function handleTextMessage(event) {
         }
 
         return await handleCalTorLong(event, amount, action, type);
-      // console.log("amount : ", amount)
-      // console.log("action : ", action)
-      // console.log("type : ", type)
-      //   if (action === 'ด') {
-      //     return `เพิ่ม ${amount} ในฝั่งแดงรอง`;
-      //   } else if (action === 'ง') {
-      //     return `เพิ่ม ${amount} ในฝั่งแดงต่อ`;
-      //   } else {
-      //     return "คำสั่งไม่ถูกต้อง";
-      //   }
-       }
-      
+      }
 
     }
   }

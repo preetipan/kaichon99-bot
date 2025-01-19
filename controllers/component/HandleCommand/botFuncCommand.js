@@ -45,6 +45,7 @@ const {
   resetSubRound,
   checkPlayInRound,
   checkSumTorLong,
+  checkSumPlus,
 } = require("../BotFunc/playController");
 const { checkUserRole } = require("../BotFunc/usePermission");
 
@@ -1282,6 +1283,15 @@ async function handleUserPlayInRound(event) {
       return null;
     }
 
+    // ตรวจสอบว่ามีรอบที่เปิดอยู่หรือไม่
+    const playInday = await checkOpenPlayInday(event);
+    if (!playInday) {
+      return client.replyMessage(event.replyToken, {
+        type: "text",
+        text: "ไม่พบรอบที่เปิดอยู่",
+      });
+    }
+
     const playinround = await checkPlayInRound(event);
     // ส่งทั้งข้อความและภาพ
     if (playinround) {
@@ -1314,6 +1324,29 @@ async function handleCalTorLong(event, amount, action, type) {
     }
 
     const cal = await checkSumTorLong(event, price);
+    if (cal) {
+      await client.replyMessage(event.replyToken, cal);
+    }
+  } catch (error) {
+    console.error("Error in handleConfirmResultCommand:", error);
+    return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
+  }
+}
+
+
+// Handle
+async function handleCalPlus(event) {
+  try {
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
+
+    if (!permissionResult.success) {
+      return null;
+    }
+
+    const cal = await checkSumPlus(event);
     if (cal) {
       await client.replyMessage(event.replyToken, cal);
     }
@@ -1408,4 +1441,5 @@ module.exports = {
   handleReturnResultConfirmation,
   handleUserPlayInRound,
   handleCalTorLong,
+  handleCalPlus,
 };
