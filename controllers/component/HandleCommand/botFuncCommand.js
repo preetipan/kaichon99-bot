@@ -991,7 +991,7 @@ async function handleUserBet(event, { type, amount }) {
 
     const betResult = await setPlayBet(event, betData);
 
-    if (betResult) {
+    if (betResult === "ok") {
       return {
         type: "flex",
         altText: `เดิมพัน${type} ${amount}บาท`,
@@ -1058,7 +1058,9 @@ async function handleUserBet(event, { type, amount }) {
           },
         },
       };
-    } else {
+    } else if(betResult === "ca") {
+      return { type: "text", text: `รหัส ${userData?.id || "N/A"} ${member.displayName}\nได้เดิมพันครบ 2 ไม้แล้ว!!!` };
+    }else{
       return { type: "text", text: "เดิมพันผิดพลาด!!!" };
     }
   } catch (error) {

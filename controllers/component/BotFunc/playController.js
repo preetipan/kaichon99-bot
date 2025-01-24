@@ -753,11 +753,14 @@ async function setPlayBet(event, betData) {
       betData
     );
 
+    console.log("test : ",response)
+
     // เพิ่มการตรวจสอบข้อมูลที่ได้จาก API
-    if (response && response.data) {
-      return true;
-    } else {
-      throw new Error("ไม่สามารถปิดรอบได้ หรือไม่พบข้อมูล");
+    if (response.status === 201) {
+      return "ok";
+    }
+    else {
+      return "ca";
     }
   } catch (error) {
     return "เกิดข้อผิดพลาดในการอัปเดตรอบ กรุณาลองใหม่";

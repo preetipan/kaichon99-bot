@@ -406,7 +406,7 @@ async function handleTextMessage(event) {
       }
 
       // ปิดรอบเล่นย่อย
-      if (userMessage.toLowerCase() === "st") {
+      if (userMessage.toLowerCase() === "ปด") {
         return await handleCloseSetOdds(event);
       }
 
