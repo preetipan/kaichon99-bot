@@ -9,6 +9,7 @@ const {
   updateAdminData,
   checkUserData,
   checkUserDataByID,
+  getUserCheckMoney,
 } = require("../BotFunc/userController");
 const {
   getBankAccountDetails,
@@ -926,6 +927,7 @@ async function handleCloseSetOdds(event) {
 // Handle เล่นเดิมพัน
 async function handleUserBet(event, { type, amount }) {
   try {
+    let betAmounts = amount;
     const userId = event.source.userId;
     const isOpenMainStatus = await checkPreviousRoundStatus();
     if (!isOpenMainStatus) {
@@ -963,10 +965,11 @@ async function handleUserBet(event, { type, amount }) {
     const formattedMax = max_amounts.toLocaleString("en-US");
 
     if (amount > max_amounts) {
-      return {
-        type: "text",
-        text: `ยอดเดิมพันสูงเกินไป!! \n เล่นได้ไม่เกิน ${formattedMax} บาท`,
-      };
+      // return {
+      //   type: "text",
+      //   text: `ยอดเดิมพันสูงเกินไป!! \n เล่นได้ไม่เกิน ${formattedMax} บาท`,
+      // };
+      betAmounts = max_amounts;
     }
 
     const round_id = subround_data?.round?.id;
@@ -977,7 +980,7 @@ async function handleUserBet(event, { type, amount }) {
     const backgroundColor = type === "ด" ? "#ffcdd2" : "#bbdefb";
     const endColor = type === "ด" ? "#ef5350" : "#42a5f5";
 
-    const totalBalance = funds - amount;
+    const totalBalance = funds - betAmounts;
 
     const betData = {
       user: userId,
@@ -985,7 +988,7 @@ async function handleUserBet(event, { type, amount }) {
       subRound: subround_id,
       group: event.source.groupId,
       betType: bet_type,
-      betAmount: amount,
+      betAmount: betAmounts,
       balance: totalBalance,
     };
 
@@ -994,7 +997,7 @@ async function handleUserBet(event, { type, amount }) {
     if (betResult === "ok") {
       return {
         type: "flex",
-        altText: `เดิมพัน${type} ${amount}บาท`,
+        altText: `เดิมพัน`,
         contents: {
           type: "bubble",
           size: "kilo",
@@ -1029,7 +1032,7 @@ async function handleUserBet(event, { type, amount }) {
                       {
                         type: "text",
                         text: `ยก ${subround_data?.numberRound || "-"
-                          } ✅ ${type}=${amount.toLocaleString()}`,
+                          } ✅ ${type}=${betAmounts.toLocaleString()}`,
                         size: "xs",
                         color: "#000000",
                       },
@@ -1359,6 +1362,20 @@ async function handleCalPlus(event) {
 }
 
 
+// Handle เช็คยอดเงินคงเหลือ
+async function handleUserChecks(event) {
+  try {
+
+    // ดึงข้อมูลยอดเงินของผู้ใช้
+    const userDetailsMessage = await getUserCheckMoney(event);
+    return client.replyMessage(event.replyToken, [userDetailsMessage]);
+  } catch (error) {
+    console.error("Error in handleUserCheckMoney:", error);
+    return null;
+  }
+}
+
+
 // ฟังก์ชันสำหรับคำนวณราคาฝั่งต่อและรอง (รีเทิร์น Object)
 function calculateOdds(type, oddsValue) {
   // แผนที่อัตราต่อรอง
@@ -1444,4 +1461,5 @@ module.exports = {
   handleUserPlayInRound,
   handleCalTorLong,
   handleCalPlus,
+  handleUserChecks,
 };

@@ -1,5 +1,6 @@
 const axios = require("axios");
 require("dotenv").config();
+const { channelAccessToken } = require("../../../config");
 const { checkUserPlay ,checkPreviousRoundStatus} = require("../BotFunc/playController");
 
 // ดึงสิทธิ์ user
@@ -374,6 +375,84 @@ async function checkUserDataByID(id) {
   }
 }
 
+
+async function getUserCheckMoney(event) {
+  try {
+    const userId = event.source.userId;
+    // ดึงข้อมูลผู้ใช้จาก API ของระบบ
+    const response = await axios.get(`${process.env.API_URL}/user/${userId}`);
+    const { id, fund } = response.data || {};
+    const formattedFund = fund ? fund.toLocaleString("en-US") : "0";
+
+    // ดึงข้อมูลโปรไฟล์ผู้ใช้จาก LINE Messaging API
+    const profileResponse = await axios.get(
+      `https://api.line.me/v2/bot/profile/${userId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${channelAccessToken}`,
+        },
+      }
+    );
+
+    const { displayName, pictureUrl } = profileResponse.data || {};
+    const userName = displayName || "ผู้ใช้";
+    const userPictureUrl = pictureUrl || "https://example.com/default-profile.png";
+
+    // สร้างข้อความ Flex Message
+    return {
+      type: "flex",
+      altText: `ข้อมูลเงินคงเหลือของ ${userName}`,
+      contents: {
+        type: "bubble",
+        size: "giga",
+        body: {
+          type: "box",
+          layout: "horizontal",
+          contents: [
+            {
+              type: "image",
+              url: userPictureUrl,
+              size: "sm",
+              aspectRatio: "1:1",
+              aspectMode: "cover",
+              margin: "sm",
+              flex: 1,
+            },
+            {
+              type: "box",
+              layout: "vertical",
+              contents: [
+                {
+                  type: "text",
+                  text: `รหัส ${id} ) ${displayName}`,
+                  weight: "bold",
+                  size: "xl",
+                  align: "center",
+                  gravity: "center",
+                  wrap: false,
+                },
+                
+              ],
+              flex: 2,
+              justifyContent: "center",
+              alignItems: "center",
+            },
+          ],
+          paddingAll: "10px",
+          backgroundColor: "#FFFFFF",
+          cornerRadius: "5px",
+        },
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching user money:", error.response?.data || error.message);
+    return {
+      type: "text",
+      text: "เกิดข้อผิดพลาดในการดึงข้อมูลผู้ใช้ กรุณาลองใหม่",
+    };
+  }
+}
+
 module.exports = {
   AddMember,
   checkIfUserExists,
@@ -383,4 +462,5 @@ module.exports = {
   updateAdminData,
   checkUserData,
   checkUserDataByID,
+  getUserCheckMoney,
 };

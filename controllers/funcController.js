@@ -35,6 +35,7 @@ const {
   handleUserPlayInRound,
   handleCalTorLong,
   handleCalPlus,
+  handleUserChecks,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
@@ -42,16 +43,11 @@ const client = new Client({ channelAccessToken });
 const pendingCommands = new Map();
 
 async function handleEvent(event) {
-  //  // ตรวจสอบข้อความที่ผู้ใช้ส่งมา
-  //  if (event.message.text) {
-  //   const message = {
-  //     type: "text",
-  //     text: "ฝาก ถอน หรือเข้ากลุ่ม : \n\nคลิกลิงก์นี้: https://line.me/R/ti/p/s.kaow",
-  //   };
 
-  //   // ส่งข้อความตอบกลับ
-  //   return client.replyMessage(event.replyToken, message);
-  // }
+  // ตรวจสอบข้อความที่ผู้ใช้ส่งมา
+  if (event.message && event.message.type === "image" && event.source && event.source.type !== "group") {
+    return handleUserChecks(event);
+  }
 
   if (event.source.type === "group" || event.source.type === "room") {
     if (event.type === "memberJoined") {
