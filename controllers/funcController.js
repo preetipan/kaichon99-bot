@@ -36,6 +36,7 @@ const {
   handleCalTorLong,
   handleCalPlus,
   handleUserChecks,
+  handleSumallinday,
 } = require("./component/HandleCommand/botFuncCommand");
 
 const client = new Client({ channelAccessToken });
@@ -488,6 +489,12 @@ async function handleTextMessage(event) {
       if (userMessage.toLowerCase() === "u") {
         return await handleCalPlus(event);
       }
+
+
+      if (userMessage.toLowerCase() === "sum") {
+        return await handleSumallinday(event);
+      }
+
 
       if (userMessage.toLowerCase().startsWith('q/')) {
         const parts = userMessage.substring(2);  // ตัด 'q/' ออก

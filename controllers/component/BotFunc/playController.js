@@ -753,7 +753,7 @@ async function setPlayBet(event, betData) {
       betData
     );
 
-    console.log("test : ",response)
+    console.log("test : ", response)
 
     // เพิ่มการตรวจสอบข้อมูลที่ได้จาก API
     if (response.status === 201) {
@@ -1498,7 +1498,7 @@ async function checkSumTorLong(event, price) {
               size: "md",
               align: "center",
               color: "#000000"
-            }            
+            }
           ],
           backgroundColor: "#F5F5F5",
           paddingTop: "md",
@@ -1670,7 +1670,7 @@ async function checkSumPlus(event) {
               size: "md",
               align: "center",
               color: "#000000"
-            }            
+            }
           ],
           backgroundColor: "#F5F5F5",
           paddingTop: "md",
@@ -1686,7 +1686,124 @@ async function checkSumPlus(event) {
 }
 
 
+// ฟังก์ชันสรุปยอดแพ้ชนะของกลุ่ม
+async function checkSumAll(event) {
+  try {
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+    const groupId = event.source.groupId || event.source.roomId;
 
+    const response = await axios.get(
+      `${process.env.API_URL}/transaction-play/total-summary/${groupId}/today`
+    );
+
+    const dataPlay = response.data;
+
+    const flexMessage = {
+      type: "flex",
+      altText: "กำไร/ขาดทุน",
+      contents: {
+        type: "bubble",
+        header: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: "กำไร/ขาดทุน ทั้งหมด",
+              weight: "bold",
+              color: "#FFFFFF",
+              size: "lg",
+              align: "center"
+            }
+          ],
+          backgroundColor: "#3461eb",
+          paddingTop: "lg",
+          paddingBottom: "lg"
+        },
+        body: {
+          type: "box",
+          layout: "vertical",
+          spacing: "lg",
+          contents: [
+            {
+              type: "box",
+              layout: "horizontal",
+              contents: [
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: "ผลประกอบการ",
+                      color: "#FFFFFF",
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  backgroundColor: "#065e25",
+                  paddingTop: "sm",
+                  paddingBottom: "sm",
+                  paddingStart: "lg",
+                  paddingEnd: "lg",
+                  cornerRadius: "md",
+                  flex: 4,
+                  alignItems: "center"
+                },
+                {
+                  type: "box",
+                  layout: "horizontal",
+                  contents: [
+                    {
+                      type: "text",
+                      text: `${dataPlay.totalProfit.toLocaleString()}บาท`,
+                      align: "center",
+                      weight: "bold",
+                      size: "sm",
+                      gravity: "center"
+                    }
+                  ],
+                  flex: 4,
+                  alignItems: "center"
+                }
+              ],
+              paddingTop: "xs",
+              alignItems: "center"
+            }
+          ],
+          paddingAll: "lg"
+        },
+        footer: {
+          type: "box",
+          layout: "vertical",
+          contents: [
+            {
+              type: "text",
+              text: `สรุปรวมทั้งหมด`,
+              weight: "bold",
+              size: "md",
+              align: "center",
+              color: "#000000"
+            }
+          ],
+          backgroundColor: "#F5F5F5",
+          paddingTop: "md",
+          paddingBottom: "md"
+        }
+      }
+    };
+    return flexMessage;
+  } catch (error) {
+    console.error("Error :", error);
+    throw new Error("เกิดข้อผิดพลาด");
+  }
+}
+
+// ฟังก์ชั่นสรุปก่อนปิดรอบ
 function calculateUserSummary(summary, userID) {
 
   const PRICE_RULES = {
@@ -1836,4 +1953,5 @@ module.exports = {
   checkPlayInRound,
   checkSumTorLong,
   checkSumPlus,
+  checkSumAll,
 };
