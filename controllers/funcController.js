@@ -113,7 +113,7 @@ async function handleMemberJoined(event) {
                 },
                 {
                   type: "text",
-                  text: "สู่กลุ่ม DTG!",
+                  text: "สู่กลุ่ม TAIGA689",
                   size: "sm", // ข้อความรองลงขนาดเล็กลง
                   color: "#555555",
                   align: "center",
@@ -158,7 +158,7 @@ async function handleMemberJoined(event) {
                 },
                 {
                   type: "text",
-                  text: "สู่กลุ่ม DTG!",
+                  text: "สู่กลุ่ม TAIGA689",
                   size: "sm",
                   color: "#555555",
                   align: "center",

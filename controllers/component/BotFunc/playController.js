@@ -753,8 +753,6 @@ async function setPlayBet(event, betData) {
       betData
     );
 
-    console.log("test : ", response)
-
     // เพิ่มการตรวจสอบข้อมูลที่ได้จาก API
     if (response.status === 201) {
       return "ok";

@@ -18,30 +18,26 @@ async function getUserRole(userId) {
 //เช็คเงินคงเหลือ
 async function getUserMoney(event, userId, member) {
   try {
-    const response = await axios.get(`${process.env.API_URL}/user/${userId}`);
+    const [response, userPlay, isOpenMainStatus] = await Promise.all([
+      axios.get(`${process.env.API_URL}/user/${userId}`),
+      checkUserPlay(event),
+      checkPreviousRoundStatus(),
+    ]);
+
     const { id, fund } = response.data || {};
     const userName = member.displayName || "ผู้ใช้";
     const userPictureUrl =
       member.pictureUrl || "https://example.com/default-profile.png";
     const formattedFund = fund.toLocaleString("en-US");
 
-    const userPlay = await checkUserPlay(event);
     let latestPlay = null;
-
-    // ตรวจสอบว่า userPlay เป็น Array และมีข้อมูลหรือไม่
-    // if (Array.isArray(userPlay) && userPlay.length > 0) {
-    //   latestPlay = userPlay.reduce((latest, current) => {
-    //     return new Date(current.createDate) > new Date(latest.createDate) ? current : latest;
-    //   }, userPlay[0]);
-    // }
     if (Array.isArray(userPlay) && userPlay.length > 0) {
       latestPlay = userPlay.reduce((latest, current) => {
         return current.id > latest.id ? current : latest;
       }, userPlay[0]);
     }
 
-    const isOpenMainStatus = await checkPreviousRoundStatus();
-
+    // หากมีข้อมูลของการเล่นและรอบที่เปิดอยู่
     if (latestPlay && isOpenMainStatus) {
       return {
         type: "flex",
@@ -104,7 +100,7 @@ async function getUserMoney(event, userId, member) {
                           },
                         ],
                         alignItems: "center",
-                        backgroundColor: play.betType === 'BLUE' ? '#3399FF' : (play.betType === 'RED' ? '#fc0000' : '#FFFFFF'),
+                        backgroundColor: play.betType === "BLUE" ? "#3399FF" : play.betType === "RED" ? "#fc0000" : "#FFFFFF",
                         cornerRadius: "0px",
                         margin: "sm",
                       })),
@@ -216,6 +212,7 @@ async function getUserMoney(event, userId, member) {
     };
   }
 }
+
 
 // ฟังก์ชันตรวจสอบการมีอยู่ของสมาชิก
 async function checkIfUserExists(userId) {
