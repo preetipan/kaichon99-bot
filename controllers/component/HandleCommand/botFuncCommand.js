@@ -1,6 +1,6 @@
 const { Client } = require("@line/bot-sdk");
 const { channelAccessToken } = require("../../../config");
-const axios = require('axios');
+const axios = require("axios");
 
 const {
   AddMember,
@@ -171,7 +171,11 @@ async function handleUpdateAdminRole(event, actionType) {
     console.log("Mentioned entities:", event.message.mention);
 
     // ตรวจสอบว่ามีการ mention ผู้ใช้หรือไม่
-    if (!event.message.mention || !event.message.mention.mentionees || event.message.mention.mentionees.length === 0) {
+    if (
+      !event.message.mention ||
+      !event.message.mention.mentionees ||
+      event.message.mention.mentionees.length === 0
+    ) {
       return sendErrorMessage(
         event,
         "กรุณา mention (@) ผู้ใช้ที่ต้องการจัดการสิทธิ์"
@@ -205,7 +209,10 @@ async function handleUpdateAdminRole(event, actionType) {
     // ดึงข้อมูลโปรไฟล์โดยใช้ userId
     let profileName = "ไม่รู้จักชื่อ";
     try {
-      const member = await client.getGroupMemberProfile(event.source.groupId, userId);
+      const member = await client.getGroupMemberProfile(
+        event.source.groupId,
+        userId
+      );
       if (member && member.displayName) {
         profileName = member.displayName;
       }
@@ -281,7 +288,7 @@ async function handleTopUpCredit(event, userMessage) {
 
     if (response && response.type === "text") {
       const transaction_money = await transationMoney(payload);
-      console.log(transaction_money)
+      console.log(transaction_money);
 
       return client.replyMessage(event.replyToken, response);
     } else {
@@ -337,11 +344,9 @@ async function handleCashCustomer(event, userMessage) {
       groupId: userData.groupId,
     };
 
-
     if (response && response.type === "text") {
-
       const transaction_money = await transationMoney(payload);
-      console.log(transaction_money)
+      console.log(transaction_money);
 
       return client.replyMessage(event.replyToken, response);
     } else {
@@ -397,11 +402,9 @@ async function handleWithdrawMoney(event, userMessage) {
       groupId: userData.groupId,
     };
 
-
     if (response && response.type === "text") {
-
       const transaction_money = await transationMoney(payload);
-      console.log(transaction_money)
+      console.log(transaction_money);
 
       return client.replyMessage(event.replyToken, response); // ส่งข้อความที่ได้จาก withdrawMoney
     } else {
@@ -485,15 +488,12 @@ async function handleUserCheckMoney(event) {
   const userId = event.source.userId;
   const groupId = event.source.groupId;
   try {
-    const [member, isUserExist] = await Promise.all([
-      client.getGroupMemberProfile(groupId, userId),
-      checkIfUserExists(userId)
-    ]);
-
+    const member = await client.getGroupMemberProfile(groupId, userId);
     if (!member) {
       return sendErrorMessage(event, "ไม่สามารถดึงข้อมูลสมาชิกได้");
     }
 
+    const isUserExist = await checkIfUserExists(userId);
     if (!isUserExist) {
       console.log(`User ${userId} does not exist, adding user to database...`);
       await AddMember(member, userId, groupId);
@@ -506,7 +506,6 @@ async function handleUserCheckMoney(event) {
     return sendErrorMessage(event, "กรุณากด c ใหม่อีกครั้ง");
   }
 }
-
 
 // Handle เปิดรอบเล่นประจำวัน
 async function handleOpenIndayCommand(event) {
@@ -584,15 +583,15 @@ async function handleCloseIndayCommand(event) {
 // Handle เปิดรอบเล่นหลัก
 async function handleOpenMainPlayCommand(event) {
   try {
-    const [playInday, permissionResult] = await Promise.all([
-      checkOpenPlayInday(event),
-      checkUserRole(event, ["Superadmin", "Admin"])
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
     ]);
-
     if (!permissionResult.success) {
       return null;
     }
 
+    const playInday = await checkOpenPlayInday(event);
     let openMainMessage;
     if (playInday) {
       await setNumberMainRound(event);
@@ -611,91 +610,12 @@ async function handleOpenMainPlayCommand(event) {
 }
 
 // Handle ปิดรอบเล่นหลัก
-// async function handleCloseMainPlayCommand(event) {
-//   try {
-//     // ตรวจสอบสิทธิ์ผู้ใช้
-//     const permissionResult = await checkUserRole(event, [
-//       "Superadmin",
-//       "Admin",
-//     ]);
-//     if (!permissionResult.success) {
-//       return client.replyMessage(event.replyToken, {
-//         type: "text",
-//         text: "คุณไม่มีสิทธิ์ในการปิดรอบ",
-//       });
-//     }
-
-//     // ตรวจสอบว่ามีรอบที่เปิดอยู่หรือไม่
-//     const playInday = await checkOpenPlayInday(event);
-//     if (!playInday) {
-//       return client.replyMessage(event.replyToken, {
-//         type: "text",
-//         text: "ไม่พบรอบที่เปิดอยู่",
-//       });
-//     }
-
-//     // ตรวจสอบสถานะรอบเล่นย่อย
-//     const isSubRoundOpen = await checkPreviousSubRoundStatus();
-//     if (isSubRoundOpen) {
-//       console.log("ยังไม่ได้ปิดราคา");
-//       return client.replyMessage(event.replyToken, {
-//         type: "text",
-//         text: "ยังไม่ได้ปิดราคา กรุณาปิดราคาก่อน!",
-//       });
-//     }
-
-//     // ดำเนินการปิดรอบและสร้างข้อความสรุป
-//     const closeMainMessage = await updateMainPlay(event, "close");
-
-
-//     if (closeMainMessage) {
-//       const summary = await fetchPlaySummary(event);
-//       const usersToUpdate = summary.map((item) => item.user);
-//       const uniqueUsersToUpdate = [...new Set(usersToUpdate)];
-
-//       // ใช้ Promise.all เพื่ออัพเดทหลายๆ ผู้ใช้พร้อมกัน
-//       const userUpdatePromises = uniqueUsersToUpdate.map((userId) =>
-//         axios.patch(`${process.env.API_URL}/user/${userId}/remainingFund`)
-//           .then(response => {
-//             if (response && response.data) {
-//               //console.log("response.data :", response.data);
-//             } else {
-//               console.error(`Failed to fetch data for user: ${userId}`);
-//             }
-//           })
-//           .catch(error => {
-//             console.error(`Error updating fund for user ${userId}:`, error);
-//           })
-//       );
-
-//       await Promise.all(userUpdatePromises);
-//       await resetSubRound(event);
-//       // ส่งข้อความสรุปให้ผู้ใช้
-//       await client.replyMessage(event.replyToken, closeMainMessage);
-//     } else {
-//       // ถ้าไม่มีข้อความใด ๆ
-//       return client.replyMessage(event.replyToken, {
-//         type: "text",
-//         text: "ไม่สามารถสร้างข้อความสรุปได้ กรุณาลองใหม่อีกครั้ง",
-//       });
-//     }
-//   } catch (error) {
-//     console.error("Error in handleCloseMainPlayCommand:", error);
-//     return client.replyMessage(event.replyToken, {
-//       type: "text",
-//       text: "ไม่พบรอบที่เปิดอยู่!!!",
-//     });
-//   }
-// }
 async function handleCloseMainPlayCommand(event) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้และตรวจสอบสถานะต่างๆ พร้อมกัน
-    const [permissionResult, playInday, isSubRoundOpen] = await Promise.all([
-      checkUserRole(event, ["Superadmin", "Admin"]),
-      checkOpenPlayInday(event),
-      checkPreviousSubRoundStatus(),
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
     ]);
-
     if (!permissionResult.success) {
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -703,6 +623,7 @@ async function handleCloseMainPlayCommand(event) {
       });
     }
 
+    const playInday = await checkOpenPlayInday(event);
     if (!playInday) {
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -710,6 +631,7 @@ async function handleCloseMainPlayCommand(event) {
       });
     }
 
+    const isSubRoundOpen = await checkSubRoundData(event);
     if (isSubRoundOpen) {
       console.log("ยังไม่ได้ปิดราคา");
       return client.replyMessage(event.replyToken, {
@@ -728,15 +650,16 @@ async function handleCloseMainPlayCommand(event) {
 
       // ใช้ Promise.all เพื่ออัพเดทหลายๆ ผู้ใช้พร้อมกัน
       const userUpdatePromises = uniqueUsersToUpdate.map((userId) =>
-        axios.patch(`${process.env.API_URL}/user/${userId}/remainingFund`)
-          .then(response => {
+        axios
+          .patch(`${process.env.API_URL}/user/${userId}/remainingFund`)
+          .then((response) => {
             if (response && response.data) {
               //console.log("response.data :", response.data);
             } else {
               console.error(`Failed to fetch data for user: ${userId}`);
             }
           })
-          .catch(error => {
+          .catch((error) => {
             console.error(`Error updating fund for user ${userId}:`, error);
           })
       );
@@ -761,17 +684,13 @@ async function handleCloseMainPlayCommand(event) {
   }
 }
 
-
 // Handle ตั้งราคา
 async function handleSetOdds(event, { type, odds, maxAmount }) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้งาน
-    const [permissionResult, isSubRoundOpen, isOpenMainStatus] = await Promise.all([
-      checkUserRole(event, ["Superadmin", "Admin"]),
-      checkPreviousSubRoundStatus(),
-      checkPreviousRoundStatus(),
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
     ]);
-
     if (!permissionResult.success) {
       //console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       const replyMessage = {
@@ -781,6 +700,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
+    const isOpenMainStatus = await checkOpenPlayInday(event);
     if (!isOpenMainStatus) {
       const replyMessage = {
         type: "text",
@@ -789,6 +709,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
+    const isSubRoundOpen = await checkSubRoundData(event);
     if (isSubRoundOpen) {
       const replyMessage = {
         type: "text",
@@ -861,7 +782,6 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
     const addOdds = await setOpenOdds(event, oddsToSend, maxAmount);
 
     if (addOdds) {
-
       const img = `${process.env.IMGE_URL}/Img/open_${pic}.jpg`;
 
       const flexMessage = {
@@ -878,7 +798,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
                 url: `${img}`,
                 size: "full",
                 aspectRatio: "3:2",
-                aspectMode: "cover"
+                aspectMode: "cover",
               },
               {
                 type: "box",
@@ -893,7 +813,7 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
                     color: `${selectedColors.coler1}`,
                     weight: "bold",
                     align: "center",
-                    wrap: false
+                    wrap: false,
                   },
                   {
                     type: "text",
@@ -902,14 +822,14 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
                     color: `${selectedColors.coler2}`,
                     weight: "bold",
                     align: "center",
-                    wrap: false
-                  }
-                ]
-              }
+                    wrap: false,
+                  },
+                ],
+              },
             ],
-            paddingAll: "lg"
-          }
-        }
+            paddingAll: "lg",
+          },
+        },
       };
 
       const replyMessage2 = {
@@ -943,13 +863,10 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
 // Handle ปิดราคา
 async function handleCloseSetOdds(event) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้งาน
-    const [permissionResult, isOpenMainStatus, isSubRoundOpen] = await Promise.all([
-      checkUserRole(event, ["Superadmin", "Admin"]),
-      checkPreviousRoundStatus(),
-      checkPreviousSubRoundStatus(),
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
     ]);
-
     if (!permissionResult.success) {
       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       const replyMessage = {
@@ -959,6 +876,7 @@ async function handleCloseSetOdds(event) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
+    const isOpenMainStatus = await checkOpenPlayInday(event);
     if (!isOpenMainStatus) {
       const replyMessage = {
         type: "text",
@@ -967,6 +885,7 @@ async function handleCloseSetOdds(event) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
+    const isSubRoundOpen = await checkSubRoundData(event);
     if (!isSubRoundOpen) {
       console.log("ยังไม่ได้ตั้ง!");
       const replyMessage = {
@@ -1000,158 +919,18 @@ async function handleCloseSetOdds(event) {
   }
 }
 
+
 // Handle เล่นเดิมพัน
-// async function handleUserBet(event, { type, amount }) {
-//   try {
-//     let betAmounts = amount;
-//     const userId = event.source.userId;
-//     const isOpenMainStatus = await checkPreviousRoundStatus();
-//     if (!isOpenMainStatus) {
-//       return { type: "text", text: "ยังไม่เปิดรอบเล่น!!!" };
-//     }
-
-//     const isSubRoundOpen = await checkPreviousSubRoundStatus();
-//     if (!isSubRoundOpen) {
-//       return { type: "text", text: "❌❌ ยังไม่ได้ตั้งราคา !! ❌❌" };
-//     }
-
-//     if (isNaN(amount) || amount <= 0) {
-//       return { type: "text", text: "กรุณาระบุจำนวนเงินเดิมพันให้ถูกต้อง!!!" };
-//     }
-
-//     const userData = await checkUserData(userId);
-//     let funds = userData?.fund || 0;
-
-//     const checkBalance = await checkUserPlayBalance(event);
-//     if (checkBalance && typeof checkBalance.balance === "number") {
-//       funds = checkBalance.balance;
-//     }
-
-//     const formattedFund = funds.toLocaleString("en-US");
-
-//     if (amount > funds) {
-//       return {
-//         type: "text",
-//         text: `เดิมพันผิดพลาด \n ยอดเงินคงเหลือ ${formattedFund} บาท`,
-//       };
-//     }
-
-//     const subround_data = await checkSubRoundData(event);
-//     const max_amounts = subround_data?.max_amount || 0;
-//     const formattedMax = max_amounts.toLocaleString("en-US");
-
-//     if (amount > max_amounts) {
-//       // return {
-//       //   type: "text",
-//       //   text: `ยอดเดิมพันสูงเกินไป!! \n เล่นได้ไม่เกิน ${formattedMax} บาท`,
-//       // };
-//       betAmounts = max_amounts;
-//     }
-
-//     const round_id = subround_data?.round?.id;
-//     const subround_id = subround_data?.id;
-//     const member = await client.getGroupMemberProfile(event.source.groupId, userId);
-
-//     const bet_type = type === "ด" ? "RED" : "BLUE";
-//     const backgroundColor = type === "ด" ? "#ffcdd2" : "#bbdefb";
-//     const endColor = type === "ด" ? "#ef5350" : "#42a5f5";
-
-//     const totalBalance = funds - betAmounts;
-
-//     const betData = {
-//       user: userId,
-//       round: round_id,
-//       subRound: subround_id,
-//       group: event.source.groupId,
-//       betType: bet_type,
-//       betAmount: betAmounts,
-//       balance: totalBalance,
-//     };
-
-//     const betResult = await setPlayBet(event, betData);
-
-//     if (betResult === "ok") {
-//       return {
-//         type: "flex",
-//         altText: `เดิมพัน`,
-//         contents: {
-//           type: "bubble",
-//           size: "kilo",
-//           body: {
-//             type: "box",
-//             layout: "vertical",
-//             contents: [
-//               {
-//                 type: "box",
-//                 layout: "horizontal",
-//                 contents: [
-//                   {
-//                     type: "image",
-//                     url:
-//                       member.pictureUrl || "https://via.placeholder.com/100",
-//                     size: "xs",
-//                     aspectMode: "cover",
-//                     aspectRatio: "1:1",
-//                     margin: "sm",
-//                     flex: 1,
-//                   },
-//                   {
-//                     type: "box",
-//                     layout: "vertical",
-//                     contents: [
-//                       {
-//                         type: "text",
-//                         text: `รหัส ${userData?.id || "N/A"} ${member.displayName}`,
-//                         size: "sm",
-//                         weight: "regular",
-//                       },
-//                       {
-//                         type: "text",
-//                         text: `ยก ${subround_data?.numberRound || "-"
-//                           } ✅ ${type}=${betAmounts.toLocaleString()}`,
-//                         size: "xs",
-//                         color: "#000000",
-//                       },
-//                     ],
-//                     flex: 3,
-//                     spacing: "xs",
-//                     paddingStart: "md",
-//                   },
-//                 ],
-//                 spacing: "md",
-//               },
-//             ],
-//             paddingAll: "sm",
-//             background: {
-//               type: "linearGradient",
-//               angle: "45deg",
-//               startColor: backgroundColor,
-//               endColor: endColor,
-//               centerColor: backgroundColor,
-//             },
-//           },
-//           styles: {
-//             body: {
-//               backgroundColor: backgroundColor,
-//             },
-//           },
-//         },
-//       };
-//     } else if (betResult === "ca") {
-//       return { type: "text", text: `รหัส ${userData?.id || "N/A"} ${member.displayName}\nได้เดิมพันครบ 2 ไม้แล้ว!!!` };
-//     } else {
-//       return { type: "text", text: "เดิมพันผิดพลาด!!!" };
-//     }
-//   } catch (error) {
-//     console.error("Error in handleUserBet:", error);
-//     return { type: "text", text: "กรุณาลองใหม่อีกครั้ง." };
-//   }
-// }
-
 async function handleUserBet(event, { type, amount }) {
   try {
     // เรียกตรวจสอบหลายๆ สถานะพร้อมกัน
-    const [isOpenMainStatus, isSubRoundOpen, userData, checkBalance, subround_data] = await Promise.all([
+    const [
+      isOpenMainStatus,
+      isSubRoundOpen,
+      userData,
+      checkBalance,
+      subround_data,
+    ] = await Promise.all([
       checkPreviousRoundStatus(),
       checkPreviousSubRoundStatus(),
       checkUserData(event.source.userId),
@@ -1192,7 +971,10 @@ async function handleUserBet(event, { type, amount }) {
 
     const round_id = subround_data?.round?.id;
     const subround_id = subround_data?.id;
-    const member = await client.getGroupMemberProfile(event.source.groupId, event.source.userId);
+    const member = await client.getGroupMemberProfile(
+      event.source.groupId,
+      event.source.userId
+    );
 
     const bet_type = type === "ด" ? "RED" : "BLUE";
     const backgroundColor = type === "ด" ? "#ffcdd2" : "#bbdefb";
@@ -1243,13 +1025,17 @@ async function handleUserBet(event, { type, amount }) {
                     contents: [
                       {
                         type: "text",
-                        text: `รหัส ${userData?.id || "N/A"} ${member.displayName}`,
+                        text: `รหัส ${userData?.id || "N/A"} ${
+                          member.displayName
+                        }`,
                         size: "sm",
                         weight: "regular",
                       },
                       {
                         type: "text",
-                        text: `ยก ${subround_data?.numberRound || "-"} ✅ ${type}=${betAmounts.toLocaleString()}`,
+                        text: `ยก ${
+                          subround_data?.numberRound || "-"
+                        } ✅ ${type}=${betAmounts.toLocaleString()}`,
                         size: "xs",
                         color: "#000000",
                       },
@@ -1281,7 +1067,9 @@ async function handleUserBet(event, { type, amount }) {
     } else if (betResult === "ca") {
       return {
         type: "text",
-        text: `รหัส ${userData?.id || "N/A"} ${member.displayName}\nได้เดิมพันครบ 2 ไม้แล้ว!!!`,
+        text: `รหัส ${userData?.id || "N/A"} ${
+          member.displayName
+        }\nได้เดิมพันครบ 2 ไม้แล้ว!!!`,
       };
     } else {
       return { type: "text", text: "เดิมพันผิดพลาด!!!" };
@@ -1292,98 +1080,18 @@ async function handleUserBet(event, { type, amount }) {
   }
 }
 
-
-// Handle สรุปผลการแข่งขัน
-// async function handleConfirmResultCommand(event, result) {
-//   try {
-//     // ตรวจสอบสิทธิ์ผู้ใช้งาน
-//     const permissionResult = await checkUserRole(event, [
-//       "Superadmin",
-//       "Admin",
-//     ]);
-
-//     const playInday = await checkOpenPlayInday(event);
-//     if (!playInday) {
-//       return null;
-//     }
-
-//     if (!permissionResult.success) {
-//       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
-//       const replyMessage = {
-//         type: "text",
-//         text: "คุณไม่มีสิทธิ์ใช้คำสั่งนี้!!!",
-//       };
-//       return await client.replyMessage(event.replyToken, replyMessage);
-//     }
-
-//     // ตรวจสอบสถานะรอบเล่นหลัก
-//     const isOpenMainStatus = await checkPreviousRoundStatus();
-//     if (isOpenMainStatus) {
-//       const replyMessage = {
-//         type: "text",
-//         text: "ยังไม่ปิดรอบเล่น!!!",
-//       };
-//       return await client.replyMessage(event.replyToken, replyMessage);
-//     }
-
-//     // กำหนดผลลัพธ์และไฟล์ภาพ
-//     let resultText;
-//     let resultS;
-//     switch (result) {
-//       case "ด":
-//         resultText = "red_win.jpg";
-//         resultS = "แดงชนะ";
-//         break;
-//       case "ง":
-//         resultText = "blue_win.jpg";
-//         resultS = "น้ำเงินชนะ";
-//         break;
-//       case "ส":
-//         resultText = "draw.jpg";
-//         resultS = "เสมอ";
-//         break;
-//       default:
-//         throw new Error("Invalid result value");
-//     }
-
-//     // ประกอบ URL ของภาพ
-//     const img = `${process.env.IMGE_URL}/Img/${resultText}`;
-
-//     // ส่งข้อความสรุปผล
-//     const replyMessageText = {
-//       type: "text",
-//       text: `สรุป ${resultS} \nยืนยันผลสรุป Y`,
-//     };
-
-//     // ส่งภาพผลลัพธ์
-//     const replyMessageImage = {
-//       type: "image",
-//       originalContentUrl: img,
-//       previewImageUrl: img,
-//     };
-
-//     // ส่งทั้งข้อความและภาพ
-//     await client.replyMessage(event.replyToken, [replyMessageText, replyMessageImage]);
-//   } catch (error) {
-//     console.error("Error in handleConfirmResultCommand:", error);
-//     return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
-//   }
-// }
-
 // Handle สรุปผลการแข่งขัน
 async function handleConfirmResultCommand(event, result) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะรอบเล่น
-    const [permissionResult, playInday, isOpenMainStatus] = await Promise.all([
-      checkUserRole(event, ["Superadmin", "Admin"]),
-      checkOpenPlayInday(event),
-      checkPreviousRoundStatus()
-    ]);
-
+    const playInday = await checkOpenPlayInday(event);
     if (!playInday) {
       return null;
     }
 
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
     if (!permissionResult.success) {
       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       const replyMessage = {
@@ -1393,6 +1101,7 @@ async function handleConfirmResultCommand(event, result) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
+    const isOpenMainStatus = await checkPrevious;
     if (isOpenMainStatus) {
       const replyMessage = {
         type: "text",
@@ -1403,9 +1112,9 @@ async function handleConfirmResultCommand(event, result) {
 
     // ใช้ Object Mapping เพื่อกำหนดผลลัพธ์
     const resultMap = {
-      "ด": { text: "แดงชนะ", image: "red_win.jpg" },
-      "ง": { text: "น้ำเงินชนะ", image: "blue_win.jpg" },
-      "ส": { text: "เสมอ", image: "draw.jpg" }
+      ด: { text: "แดงชนะ", image: "red_win.jpg" },
+      ง: { text: "น้ำเงินชนะ", image: "blue_win.jpg" },
+      ส: { text: "เสมอ", image: "draw.jpg" },
     };
 
     const resultData = resultMap[result];
@@ -1430,7 +1139,10 @@ async function handleConfirmResultCommand(event, result) {
     };
 
     // ส่งทั้งข้อความและภาพ
-    await client.replyMessage(event.replyToken, [replyMessageText, replyMessageImage]);
+    await client.replyMessage(event.replyToken, [
+      replyMessageText,
+      replyMessageImage,
+    ]);
   } catch (error) {
     console.error("Error in handleConfirmResultCommand:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
@@ -1440,22 +1152,21 @@ async function handleConfirmResultCommand(event, result) {
 // Handle ย้อนผลสรุปผลการแข่งขัน
 async function handleReturnConfirmResultCommand(event, roundNumber) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะการเปิดเกม
-    const [permissionResult, playInday, isOpenMainStatus] = await Promise.all([
-      checkUserRole(event, ["Superadmin", "Admin"]),
-      checkOpenPlayInday(event),
-      checkPreviousRoundStatus(),
-    ]);
-
+    const playInday = await checkOpenPlayInday(event);
     if (!playInday) {
       return null; // ไม่เปิดเกมในวันนี้
     }
 
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
     if (!permissionResult.success) {
       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       return sendErrorMessage(event, "คุณไม่มีสิทธิ์ใช้คำสั่งนี้!!!");
     }
 
+    const isOpenMainStatus = await checkPreviousRoundStatus();
     // ตรวจสอบสถานะรอบเล่นหลัก
     if (isOpenMainStatus) {
       const replyMessage = {
@@ -1473,13 +1184,11 @@ async function handleReturnConfirmResultCommand(event, roundNumber) {
 
     // ส่งข้อความยืนยันย้อนผล
     await client.replyMessage(event.replyToken, replyMessageText);
-
   } catch (error) {
     console.error("Error in handleReturnConfirmResultCommand:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
   }
 }
-
 
 // Handle แจ้งให้ยืนยันผลใหม่
 async function handleReturnResultConfirmation(event) {
@@ -1524,28 +1233,28 @@ async function handleReturnResultConfirmation(event) {
   }
 }
 
-
 // Handle ยืนยันผลการแข่งขัน
 async function handleResultConfirmation(event, result, resultStatus) {
   try {
-    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะการเปิดเกม
-    const [permissionResult, playInday, isOpenMainStatus] = await Promise.all([
-      checkUserRole(event, ["Superadmin", "Admin"]),
-      checkOpenPlayInday(event),
-      checkPreviousRoundStatus(),
-    ]);
+    const playInday = await checkOpenPlayInday(event);
 
     // ตรวจสอบการเปิดเกม
     if (!playInday) {
       return null; // ถ้าไม่มีการเปิดเกมในวันนี้
     }
 
+    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะการเปิดเกม
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
     // ตรวจสอบสิทธิ์ผู้ใช้งาน
     if (!permissionResult.success) {
       console.log("ผู้ใช้ไม่มีสิทธิ์");
       return sendErrorMessage(event, "คุณไม่มีสิทธิ์ใช้คำสั่งนี้!!!");
     }
 
+    const isOpenMainStatus = await checkPreviousRoundStatus();
     // ตรวจสอบสถานะของรอบเล่นหลัก
     if (isOpenMainStatus) {
       const replyMessage = {
@@ -1566,30 +1275,26 @@ async function handleResultConfirmation(event, result, resultStatus) {
 
     // ส่งผลลัพธ์กลับไปยังผู้ใช้งาน
     return await client.replyMessage(event.replyToken, results);
-
   } catch (error) {
     console.error("Error in handleResultConfirmation:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาดในการยืนยันผล กรุณาลองใหม่");
   }
 }
 
-
 // Handle ยืนยันผลการแข่งขัน
 async function handleUserPlayInRound(event) {
   try {
     // ตรวจสอบสิทธิ์ผู้ใช้งาน
-    const permissionResult = await checkUserRole(event, ["Superadmin", "Admin"]);
+    const permissionResult = await checkUserRole(event, [
+      "Superadmin",
+      "Admin",
+    ]);
     if (!permissionResult.success) {
       console.log("ผู้ใช้ไม่มีสิทธิ์");
       return sendErrorMessage(event, "คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้!!!");
     }
 
-    // ตรวจสอบสถานะการเปิดรอบ
-    const [playInday, playinround] = await Promise.all([
-      checkOpenPlayInday(event),
-      checkPlayInRound(event),
-    ]);
-
+    const playInday = await checkOpenPlayInday(event);
     if (!playInday) {
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -1597,18 +1302,16 @@ async function handleUserPlayInRound(event) {
       });
     }
 
+    const playinround = await checkPlayInRound(event);
     // ถ้ามีรอบที่เปิดอยู่และข้อมูลการเล่น
     if (playinround) {
       await client.replyMessage(event.replyToken, playinround);
     }
-
   } catch (error) {
     console.error("Error in handleUserPlayInRound:", error);
     return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
   }
 }
-
-
 
 // Handle cal tor long
 async function handleCalTorLong(event, amount, action, type) {
@@ -1622,11 +1325,11 @@ async function handleCalTorLong(event, amount, action, type) {
       return null;
     }
 
-    let price
+    let price;
     if (type === "long") {
-      price = `10/${amount}`
+      price = `10/${amount}`;
     } else {
-      price = `${amount}/10`
+      price = `${amount}/10`;
     }
 
     const cal = await checkSumTorLong(event, price);
@@ -1638,7 +1341,6 @@ async function handleCalTorLong(event, amount, action, type) {
     return sendErrorMessage(event, "เกิดข้อผิดพลาด กรุณาลองใหม่");
   }
 }
-
 
 // Handle cal plus
 async function handleCalPlus(event) {
@@ -1662,7 +1364,6 @@ async function handleCalPlus(event) {
   }
 }
 
-
 // Handle sum all in day
 async function handleSumallinday(event) {
   try {
@@ -1685,11 +1386,9 @@ async function handleSumallinday(event) {
   }
 }
 
-
 // Handle เช็คยอดเงินคงเหลือ
 async function handleUserChecks(event) {
   try {
-
     // ดึงข้อมูลยอดเงินของผู้ใช้
     const userDetailsMessage = await getUserCheckMoney(event);
     return client.replyMessage(event.replyToken, [userDetailsMessage]);
@@ -1698,7 +1397,6 @@ async function handleUserChecks(event) {
     return null;
   }
 }
-
 
 // ฟังก์ชันสำหรับคำนวณราคาฝั่งต่อและรอง (รีเทิร์น Object)
 function calculateOdds(type, oddsValue) {
@@ -1749,7 +1447,6 @@ function calculateOdds(type, oddsValue) {
     y: `รอง ${side === "แดง" ? "น้ำเงิน" : "แดง"} แทง 10 เสีย ${odds.รอง}`,
   };
 }
-
 
 function sendErrorMessage(event, message) {
   return client.replyMessage(event.replyToken, {
