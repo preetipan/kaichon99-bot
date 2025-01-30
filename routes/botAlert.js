@@ -14,6 +14,7 @@ const processQueue = async () => {
   }
 };
 
+
 // รับคำขอจาก LINE
 router.post("/", line.middleware({ channelSecret }), async (req, res) => {
   try {
