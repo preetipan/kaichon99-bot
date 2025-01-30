@@ -981,7 +981,7 @@ async function updateRemainingFund(summary, resultStatus) {
     const updateResults = await Promise.all(uniqueUsersToUpdate.map(async (userId) => {
       try {
         const userSummary = summary.find((item) => item.user === userId);
-        const sum_result = calculateUserSummary(summary, userId);
+        const sum_result = await calculateUserSummary(summary, userId);
 
         // ดึงข้อมูลผู้ใช้งาน
         const userData = await axios.get(`${process.env.API_URL}/user/${userId}`);
@@ -1802,7 +1802,7 @@ async function checkSumAll(event) {
 }
 
 // ฟังก์ชั่นสรุปก่อนปิดรอบ
-function calculateUserSummary(summary, userID) {
+async function calculateUserSummary(summary, userID) {
 
   const PRICE_RULES = {
     RED: {
