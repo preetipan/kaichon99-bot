@@ -488,12 +488,14 @@ async function handleUserCheckMoney(event) {
   const userId = event.source.userId;
   const groupId = event.source.groupId;
   try {
-    const member = await client.getGroupMemberProfile(groupId, userId);
+    const [member, isUserExist] = await Promise.all([
+      client.getGroupMemberProfile(groupId, userId),
+      checkIfUserExists(userId),
+    ]);
     if (!member) {
       return sendErrorMessage(event, "ไม่สามารถดึงข้อมูลสมาชิกได้");
     }
 
-    const isUserExist = await checkIfUserExists(userId);
     if (!isUserExist) {
       console.log(`User ${userId} does not exist, adding user to database...`);
       await AddMember(member, userId, groupId);
@@ -583,15 +585,13 @@ async function handleCloseIndayCommand(event) {
 // Handle เปิดรอบเล่นหลัก
 async function handleOpenMainPlayCommand(event) {
   try {
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
+    const [playInday, permissionResult] = await Promise.all([
+      checkOpenPlayInday(event),
+      checkUserRole(event, ["Superadmin", "Admin"]),
     ]);
     if (!permissionResult.success) {
       return null;
     }
-
-    const playInday = await checkOpenPlayInday(event);
     let openMainMessage;
     if (playInday) {
       await setNumberMainRound(event);
@@ -612,18 +612,19 @@ async function handleOpenMainPlayCommand(event) {
 // Handle ปิดรอบเล่นหลัก
 async function handleCloseMainPlayCommand(event) {
   try {
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
+    // ตรวจสอบสิทธิ์ผู้ใช้และตรวจสอบสถานะต่างๆ พร้อมกัน
+    const [permissionResult, playInday, isSubRoundOpen] = await Promise.all([
+      checkUserRole(event, ["Superadmin", "Admin"]),
+      checkOpenPlayInday(event),
+      checkPreviousSubRoundStatus(),
     ]);
+
     if (!permissionResult.success) {
       return client.replyMessage(event.replyToken, {
         type: "text",
         text: "คุณไม่มีสิทธิ์ในการปิดรอบ",
       });
     }
-
-    const playInday = await checkOpenPlayInday(event);
     if (!playInday) {
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -631,7 +632,6 @@ async function handleCloseMainPlayCommand(event) {
       });
     }
 
-    const isSubRoundOpen = await checkSubRoundData(event);
     if (isSubRoundOpen) {
       console.log("ยังไม่ได้ปิดราคา");
       return client.replyMessage(event.replyToken, {
@@ -687,10 +687,14 @@ async function handleCloseMainPlayCommand(event) {
 // Handle ตั้งราคา
 async function handleSetOdds(event, { type, odds, maxAmount }) {
   try {
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
-    ]);
+    // ตรวจสอบสิทธิ์ผู้ใช้งาน
+    const [permissionResult, isSubRoundOpen, isOpenMainStatus] =
+      await Promise.all([
+        checkUserRole(event, ["Superadmin", "Admin"]),
+        checkPreviousSubRoundStatus(),
+        checkPreviousRoundStatus(),
+      ]);
+
     if (!permissionResult.success) {
       //console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       const replyMessage = {
@@ -699,8 +703,6 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
       };
       return await client.replyMessage(event.replyToken, replyMessage);
     }
-
-    const isOpenMainStatus = await checkOpenPlayInday(event);
     if (!isOpenMainStatus) {
       const replyMessage = {
         type: "text",
@@ -708,8 +710,6 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
       };
       return await client.replyMessage(event.replyToken, replyMessage);
     }
-
-    const isSubRoundOpen = await checkSubRoundData(event);
     if (isSubRoundOpen) {
       const replyMessage = {
         type: "text",
@@ -863,10 +863,14 @@ async function handleSetOdds(event, { type, odds, maxAmount }) {
 // Handle ปิดราคา
 async function handleCloseSetOdds(event) {
   try {
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
-    ]);
+    // ตรวจสอบสิทธิ์ผู้ใช้งาน
+    const [permissionResult, isOpenMainStatus, isSubRoundOpen] =
+      await Promise.all([
+        checkUserRole(event, ["Superadmin", "Admin"]),
+        checkPreviousRoundStatus(),
+        checkPreviousSubRoundStatus(),
+      ]);
+
     if (!permissionResult.success) {
       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       const replyMessage = {
@@ -876,7 +880,6 @@ async function handleCloseSetOdds(event) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
-    const isOpenMainStatus = await checkOpenPlayInday(event);
     if (!isOpenMainStatus) {
       const replyMessage = {
         type: "text",
@@ -885,7 +888,6 @@ async function handleCloseSetOdds(event) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
-    const isSubRoundOpen = await checkSubRoundData(event);
     if (!isSubRoundOpen) {
       console.log("ยังไม่ได้ตั้ง!");
       const replyMessage = {
@@ -918,7 +920,6 @@ async function handleCloseSetOdds(event) {
     return sendErrorMessage(event, "เกิดข้อผิดพลาดในการปิดรอบ กรุณาลองใหม่");
   }
 }
-
 
 // Handle เล่นเดิมพัน
 async function handleUserBet(event, { type, amount }) {
@@ -1083,15 +1084,17 @@ async function handleUserBet(event, { type, amount }) {
 // Handle สรุปผลการแข่งขัน
 async function handleConfirmResultCommand(event, result) {
   try {
-    const playInday = await checkOpenPlayInday(event);
+    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะรอบเล่น
+    const [permissionResult, playInday, isOpenMainStatus] = await Promise.all([
+      checkUserRole(event, ["Superadmin", "Admin"]),
+      checkOpenPlayInday(event),
+      checkPreviousRoundStatus(),
+    ]);
+
     if (!playInday) {
       return null;
     }
 
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
-    ]);
     if (!permissionResult.success) {
       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       const replyMessage = {
@@ -1101,7 +1104,6 @@ async function handleConfirmResultCommand(event, result) {
       return await client.replyMessage(event.replyToken, replyMessage);
     }
 
-    const isOpenMainStatus = await checkPrevious;
     if (isOpenMainStatus) {
       const replyMessage = {
         type: "text",
@@ -1152,21 +1154,22 @@ async function handleConfirmResultCommand(event, result) {
 // Handle ย้อนผลสรุปผลการแข่งขัน
 async function handleReturnConfirmResultCommand(event, roundNumber) {
   try {
-    const playInday = await checkOpenPlayInday(event);
+    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะการเปิดเกม
+    const [permissionResult, playInday, isOpenMainStatus] = await Promise.all([
+      checkUserRole(event, ["Superadmin", "Admin"]),
+      checkOpenPlayInday(event),
+      checkPreviousRoundStatus(),
+    ]);
+
     if (!playInday) {
       return null; // ไม่เปิดเกมในวันนี้
     }
 
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
-    ]);
     if (!permissionResult.success) {
       console.log("ไม่มีสิทธิ์ใช้คำสั่งนี้");
       return sendErrorMessage(event, "คุณไม่มีสิทธิ์ใช้คำสั่งนี้!!!");
     }
 
-    const isOpenMainStatus = await checkPreviousRoundStatus();
     // ตรวจสอบสถานะรอบเล่นหลัก
     if (isOpenMainStatus) {
       const replyMessage = {
@@ -1236,25 +1239,23 @@ async function handleReturnResultConfirmation(event) {
 // Handle ยืนยันผลการแข่งขัน
 async function handleResultConfirmation(event, result, resultStatus) {
   try {
-    const playInday = await checkOpenPlayInday(event);
+    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะการเปิดเกม
+    const [permissionResult, playInday, isOpenMainStatus] = await Promise.all([
+      checkUserRole(event, ["Superadmin", "Admin"]),
+      checkOpenPlayInday(event),
+      checkPreviousRoundStatus(),
+    ]);
 
     // ตรวจสอบการเปิดเกม
     if (!playInday) {
       return null; // ถ้าไม่มีการเปิดเกมในวันนี้
     }
-
-    // ตรวจสอบสิทธิ์ผู้ใช้งานและสถานะการเปิดเกม
-    const permissionResult = await checkUserRole(event, [
-      "Superadmin",
-      "Admin",
-    ]);
     // ตรวจสอบสิทธิ์ผู้ใช้งาน
     if (!permissionResult.success) {
       console.log("ผู้ใช้ไม่มีสิทธิ์");
       return sendErrorMessage(event, "คุณไม่มีสิทธิ์ใช้คำสั่งนี้!!!");
     }
 
-    const isOpenMainStatus = await checkPreviousRoundStatus();
     // ตรวจสอบสถานะของรอบเล่นหลัก
     if (isOpenMainStatus) {
       const replyMessage = {
@@ -1294,7 +1295,11 @@ async function handleUserPlayInRound(event) {
       return sendErrorMessage(event, "คุณไม่มีสิทธิ์ใช้งานคำสั่งนี้!!!");
     }
 
-    const playInday = await checkOpenPlayInday(event);
+    // ตรวจสอบสถานะการเปิดรอบ
+    const [playInday, playinround] = await Promise.all([
+      checkOpenPlayInday(event),
+      checkPlayInRound(event),
+    ]);
     if (!playInday) {
       return client.replyMessage(event.replyToken, {
         type: "text",
@@ -1302,7 +1307,6 @@ async function handleUserPlayInRound(event) {
       });
     }
 
-    const playinround = await checkPlayInRound(event);
     // ถ้ามีรอบที่เปิดอยู่และข้อมูลการเล่น
     if (playinround) {
       await client.replyMessage(event.replyToken, playinround);
