@@ -279,6 +279,74 @@ async function checkIfGroupSub(subGroupID) {
   }
 }
 
+
+// ฟังก์ชันตั้งค่า setConfirmResult
+async function setConfirmResult(event, result) {
+  try {
+    const groupId = event.source.groupId || event.source.roomId;
+
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const response = await axios.patch(
+      `${process.env.API_URL}/group/${groupId}`,
+      {
+        confirm_result: result,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error updating Hilo status:",
+      error.response?.data || error.message
+    );
+    return "เกิดข้อผิดพลาดในการอัปเดตสถานะ Hilo กรุณาลองใหม่";
+  }
+}
+
+// ฟังก์ชันตั้งค่า setConfirmResult
+async function setReturnResult(event, result) {
+  try {
+    const groupId = event.source.groupId || event.source.roomId;
+
+    if (!process.env.API_URL) {
+      throw new Error("API_URL is not defined in .env");
+    }
+
+    const response = await axios.patch(
+      `${process.env.API_URL}/group/${groupId}`,
+      {
+        return_result: result,
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error updating Hilo status:",
+      error.response?.data || error.message
+    );
+    return "เกิดข้อผิดพลาดในการอัปเดตสถานะ Hilo กรุณาลองใหม่";
+  }
+}
+
+
+async function getGroupData(groupID) {
+  try {
+    const response = await axios.get(
+      `${process.env.API_URL}/group/detail/${groupID}`
+    );
+    return response.data;
+  } catch (error) {
+    console.error(
+      "Error updating Hilo status:",
+      error.response?.data || error.message
+    );
+    return "เกิดข้อผิดพลาด";
+  }
+}
+
+
 module.exports = {
   setGroup,
   setHilo,
@@ -289,4 +357,7 @@ module.exports = {
   getGroupByName,
   setSubGroup,
   checkIfGroupSub,
+  setConfirmResult,
+  setReturnResult,
+  getGroupData,
 };

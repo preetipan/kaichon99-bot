@@ -8,6 +8,9 @@ const {
 const {
   checkIfGroupSub,
   checkIfGroupMain,
+  setConfirmResult,
+  setReturnResult,
+  getGroupData,
 } = require("./component/BotFunc/groupController");
 const {
   handleUserCheckMoney,
@@ -41,7 +44,7 @@ const {
 
 const client = new Client({ channelAccessToken });
 
-const pendingCommands = new Map();
+//const pendingCommands = new Map();
 
 async function handleEvent(event) {
 
@@ -292,7 +295,8 @@ async function handleTextMessage(event) {
 
       // เปิดรอบเล่นหลัก
       if (userMessage.toLowerCase() === "o") {
-        pendingCommands.delete("2");
+        //pendingCommands.delete("2");
+        await setReturnResult(groupId, null);
         return await handleOpenMainPlayCommand(event);
       }
 
@@ -381,6 +385,29 @@ async function handleTextMessage(event) {
         }
       }
 
+
+      // คำสั่งเปิดราคา "ส10"
+      if (
+        userMessage.toLowerCase().startsWith("ส10/")
+      ) {
+        const parts = userMessage.split("/");
+        if (
+          parts.length === 2 &&
+          isFinite(parts[1]) &&
+          parseFloat(parts[1]) > 0
+        ) {
+          const [type, maxAmount] = parts;
+          return await handleSetOdds(event, { type, maxAmount });
+        } else {
+          const replyMessage = {
+            type: "text",
+            text: "กรุณาระบุจำนวนเงินเดิมพันสูงสุด!!!",
+          };
+
+          return await client.replyMessage(event.replyToken, replyMessage);
+        }
+      }
+
       // คำสั่งเดิมพัน  "ด" หรือ "ง" เช่น ด50000
       if (
         userMessage.toLowerCase().startsWith("ด") ||
@@ -418,7 +445,8 @@ async function handleTextMessage(event) {
 
         // ตรวจสอบเฉพาะตัวอักษรที่อนุญาต
         if (["ด", "ง", "ส"].includes(result)) {
-          pendingCommands.set("1", result); // เก็บคำสั่ง "sด", "sง", "ส"
+          //pendingCommands.set("1", result);
+          await setConfirmResult(groupId, result);
           return await handleConfirmResultCommand(event, result);
         } else {
           console.log("คำสั่งไม่ถูกต้อง");
@@ -428,24 +456,26 @@ async function handleTextMessage(event) {
 
       // ยืนยันคำสั่ง
       if (userMessage.toLowerCase() === "y") {
+        const groupdata = await getGroupData(groupId);
         // กรณีที่เป็นการยืนยันการอัพเดตยอด
-        if (pendingCommands.has("1")) {
-          const selectedResult = pendingCommands.get("1");
-          const returnd_status = pendingCommands.get("2");
+        if (groupdata.confirm_result !== null) {
+          //const selectedResult = pendingCommands.get("1");
+          //const returnd_status = pendingCommands.get("2");
           let status
-          if (!returnd_status) {
-            status = "New"
-          } else {
+          if (groupdata.return_result !== null) {
             status = "Old"
+          } else {
+            status = "New"
           }
 
-          await handleResultConfirmation(event, selectedResult, status);
-          pendingCommands.delete("1");
+          await handleResultConfirmation(event, groupdata.confirm_result, status);
+          //pendingCommands.delete("1");
+          await setConfirmResult(groupId, null);
           return;
         }
         // กรณีที่เป็นการยืนยันย้อนผล
-        else if (pendingCommands.has("2")) {
-          const roundNumber = pendingCommands.get("2");
+        else if (groupdata.return_result !== null) {
+          const roundNumber = groupdata.return_result;
           return await handleReturnResultConfirmation(event, roundNumber);
         }
         // กรณีที่ไม่พบคำสั่งที่รอการยืนยัน
@@ -462,7 +492,8 @@ async function handleTextMessage(event) {
         if (messageParts.length === 2) {
           const roundNumber = parseInt(messageParts[1]);
           if (!isNaN(roundNumber)) {
-            pendingCommands.set("2", roundNumber);
+            //pendingCommands.set("2", roundNumber);
+            await setReturnResult(groupId, roundNumber);
             return await handleReturnConfirmResultCommand(event, roundNumber);
           } else {
             console.log("คำสั่งไม่ถูกต้อง");
