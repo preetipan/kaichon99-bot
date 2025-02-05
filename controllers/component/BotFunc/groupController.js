@@ -281,16 +281,16 @@ async function checkIfGroupSub(subGroupID) {
 
 
 // ฟังก์ชันตั้งค่า setConfirmResult
-async function setConfirmResult(event, result) {
+async function setConfirmResult(groupid, result) {
   try {
-    const groupId = event.source.groupId || event.source.roomId;
+    //const groupId = event.source.groupId || event.source.roomId;
 
     if (!process.env.API_URL) {
       throw new Error("API_URL is not defined in .env");
     }
 
     const response = await axios.patch(
-      `${process.env.API_URL}/group/${groupId}`,
+      `${process.env.API_URL}/group/${groupid}`,
       {
         confirm_result: result,
       }
@@ -306,16 +306,15 @@ async function setConfirmResult(event, result) {
 }
 
 // ฟังก์ชันตั้งค่า setConfirmResult
-async function setReturnResult(event, result) {
+async function setReturnResult(groupid, result) {
   try {
-    const groupId = event.source.groupId || event.source.roomId;
 
     if (!process.env.API_URL) {
       throw new Error("API_URL is not defined in .env");
     }
 
     const response = await axios.patch(
-      `${process.env.API_URL}/group/${groupId}`,
+      `${process.env.API_URL}/group/${groupid}`,
       {
         return_result: result,
       }
