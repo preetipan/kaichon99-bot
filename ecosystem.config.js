@@ -1,9 +1,9 @@
 module.exports = {
     apps: [
       {
-        name: "DTG-bot",
+        name: "taiga-bot",
         script: "./index.js",
-        instances: "max",
+        instances: 2, 
         exec_mode: "cluster",
         watch: true,
         env: {
