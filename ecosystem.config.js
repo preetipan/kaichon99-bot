@@ -3,7 +3,7 @@ module.exports = {
       {
         name: "taiga-bot",
         script: "./index.js",
-        instances: 2, 
+        instances: 2,  
         exec_mode: "cluster",
         watch: true,
         env: {
