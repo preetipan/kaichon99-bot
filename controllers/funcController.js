@@ -409,12 +409,41 @@ async function handleTextMessage(event) {
       }
 
       // คำสั่งเดิมพัน  "ด" หรือ "ง" เช่น ด50000
-      if (
-        userMessage.toLowerCase().startsWith("ด") ||
-        userMessage.toLowerCase().startsWith("ง")
-      ) {
-        const type = userMessage.toLowerCase().startsWith("ด") ? "ด" : "ง";
-        const amount = parseFloat(userMessage.substring(1));
+      // if (
+      //   userMessage.toLowerCase().startsWith("ด") ||
+      //   userMessage.toLowerCase().startsWith("ง")
+      // ) {
+      //   const type = userMessage.toLowerCase().startsWith("ด") ? "ด" : "ง";
+      //   const amount = parseFloat(userMessage.substring(1));
+
+      //   try {
+      //     const userbet = await handleUserBet(event, { type, amount });
+
+      //     return await client.replyMessage(event.replyToken, userbet);
+      //   } catch (error) {
+      //     const errorMessage = {
+      //       type: "text",
+      //       text: "เกิดข้อผิดพลาดในการลงเดิมพัน กรุณาลองใหม่อีกครั้ง",
+      //     };
+      //     return await client.replyMessage(event.replyToken, errorMessage);
+      //   }
+      // }
+
+      // ตรวจสอบรูปแบบการเดิมพันที่ถูกต้อง
+      const betPattern = /^(ด|ง)(\d+)$|^(\d+)(ด|ง)$/i;
+      const match = userMessage.match(betPattern);
+
+      if (match) {
+        const type = match[1] || match[4]; // ตัวเลือก "ด" หรือ "ง"
+        const amount = parseFloat(match[2] || match[3]); // ดึงตัวเลข
+
+        if (isNaN(amount) || amount <= 0) {
+          const errorMessage = {
+            type: "text",
+            text: "กรุณาระบุจำนวนเงินให้ถูกต้อง",
+          };
+          return await client.replyMessage(event.replyToken, errorMessage);
+        }
 
         try {
           const userbet = await handleUserBet(event, { type, amount });

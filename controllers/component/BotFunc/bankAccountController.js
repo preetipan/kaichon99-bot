@@ -106,7 +106,7 @@ function getBankAccountDetails(member) {
             paddingTop: "10px",
           },
         ],
-        backgroundColor: "#5A2D82",
+        backgroundColor: "#b0b0b0",
         paddingAll: "20px",
         cornerRadius: "5px",
         borderWidth: "0px",
