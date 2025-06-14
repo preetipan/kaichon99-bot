@@ -1,7 +1,7 @@
 module.exports = {
     apps: [
       {
-        name: "taiga-bot",
+        name: "kaichon99-bot",
         script: "./index.js",
         instances: 3,  
         exec_mode: "cluster",
