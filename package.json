@@ -6,7 +6,7 @@
     "express": "^4.21.1",
     "nodemon": "^3.1.9"
   },
-  "name": "dtg-bot-protect",
+  "name": "kaichon-bot",
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
