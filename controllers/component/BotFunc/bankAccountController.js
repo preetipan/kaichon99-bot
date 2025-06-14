@@ -6,7 +6,7 @@ function getBankAccountDetails(member) {
   const bank_name = process.env.BANK_NAME || "ไม่ระบุธนาคาร";
   const bank_account = process.env.BANK_ACCOUNT || "ไม่ระบุเลขบัญชี";
   const bank_account_name = process.env.BANK_ACCOUNT_NAME || "ไม่ระบุชื่อบัญชี";
-  const img = `${process.env.IMGE_URL}/Img/${bank_type}.png`;
+  const img = `${process.env.IMGE_URL}/Img/${bank_type}.jpg`;
 
   return {
     type: "flex",
@@ -94,10 +94,10 @@ function getBankAccountDetails(member) {
                 style: "primary",
                 action: {
                   type: "uri",
-                  label: "กรุณาส่งสลิป ผ่านช่องทางนี้",
-                  uri: "line://ti/p/@892xtjpl",
+                  label: "ส่งสลิป-ถอน ผ่านช่องทางนี้",
+                  uri: "https://line.me/ti/p/oDtFyu1xlQ",
                 },
-                color: "#00C851",
+                color: "#295bd7",
                 height: "sm",
                 margin: "sm",
               },
@@ -106,7 +106,7 @@ function getBankAccountDetails(member) {
             paddingTop: "10px",
           },
         ],
-        backgroundColor: "#b0b0b0",
+        backgroundColor: "#02a951",
         paddingAll: "20px",
         cornerRadius: "5px",
         borderWidth: "0px",
